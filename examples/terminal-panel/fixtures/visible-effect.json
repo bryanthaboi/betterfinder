@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "set command to `printf hello`, click run, expect hello + exit 0. try `exit 3`, expect exit 3. no shell command runs on activation.",
+  "automatedRuntimeCoverage": false
+}

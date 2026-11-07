@@ -1,0 +1,175 @@
+{
+  "id": "high-contrast",
+  "name": "High Contrast",
+  "base": "dark",
+  "colors": {
+    "windowBg": "#000000",
+    "listBg": "#000000",
+    "rowAlt": "",
+    "selection": "#FFFF00",
+    "selectionText": "#000000",
+    "text": "#FFFFFF",
+    "secondaryText": "#FFFFFF",
+    "sidebarBg": "#000000",
+    "sidebarText": "#FFFFFF",
+    "statusBarBg": "#000000",
+    "statusBarText": "#FFFFFF",
+    "toolbarBg": "#000000",
+    "accent": "#00FFFF",
+    "border": "#FFFFFF",
+    "inactiveSelection": "#FFFFFF",
+    "inactiveSelectionText": "#000000",
+    "sidebarSelection": "#FFFF00",
+    "sidebarSelectionText": "#000000",
+    "toolbarText": "#FFFFFF",
+    "sidebarIcon": "#FFFFFF"
+  },
+  "fonts": {
+    "list": {
+      "family": "system",
+      "size": 15,
+      "weight": "semibold"
+    },
+    "ui": {
+      "family": "system",
+      "size": 13,
+      "weight": "semibold"
+    },
+    "sidebar": {
+      "family": "system",
+      "size": 15,
+      "weight": "semibold"
+    },
+    "statusBar": {
+      "family": "system",
+      "size": 13,
+      "weight": "semibold"
+    }
+  },
+  "metrics": {
+    "rowHeight": 32,
+    "cornerRadius": 0,
+    "bevel": "none",
+    "borderWidth": 2,
+    "statusBarHeight": 28,
+    "listIconSize": 20,
+    "sidebarRowHeight": 36,
+    "pathBarHeight": 32,
+    "selectionInset": 0,
+    "selectionVerticalInset": 0,
+    "cellHorizontalInset": 8,
+    "iconTextGap": 8,
+    "iconGridGapH": 16,
+    "iconGridGapV": 20,
+    "iconGridInset": 20,
+    "defaultDensity": "comfortable"
+  },
+  "chrome": {
+    "titlebar": "solid",
+    "toolbarStyle": "bevel",
+    "scrollbar": "flat",
+    "useNativeChrome": false
+  },
+  "window": {
+    "titlebar": "solid",
+    "colors": [
+      "#000000"
+    ],
+    "inactiveColors": [
+      "#000000"
+    ],
+    "titleColor": "#FFFFFF",
+    "inactiveTitleColor": "#C0C0C0",
+    "titleAlignment": "center",
+    "titleFont": {
+      "family": "system",
+      "size": 14,
+      "weight": "bold"
+    },
+    "buttons": "native",
+    "frameColor": "#FFFFFF",
+    "separator": true
+  },
+  "toolbar": {
+    "style": "bevel",
+    "surface": "flat",
+    "background": "#000000",
+    "text": "#FFFFFF",
+    "buttonFace": "#000000",
+    "buttonBorder": "#FFFFFF",
+    "hover": "#333333",
+    "pressed": "#FFFF00",
+    "cornerRadius": 4
+  },
+  "header": {
+    "style": "flat",
+    "background": "#000000",
+    "text": "#FFFFFF",
+    "separator": "#FFFFFF",
+    "sortIndicator": "#FFFF00",
+    "height": 26,
+    "font": {
+      "family": "system",
+      "size": 13,
+      "weight": "bold"
+    }
+  },
+  "pathBar": {
+    "style": "flat",
+    "background": "#000000",
+    "text": "#FFFFFF",
+    "separator": "#FFFFFF",
+    "highlight": "#FFFF00",
+    "font": {
+      "family": "system",
+      "size": 13,
+      "weight": "semibold"
+    }
+  },
+  "surfaces": {
+    "statusBar": "flat",
+    "sidebar": "flat",
+    "list": "native"
+  },
+  "grid": {
+    "horizontal": true,
+    "vertical": false,
+    "color": "#5A5A5A",
+    "style": "solid",
+    "width": 1
+  },
+  "iconLabels": {
+    "text": "#FFFFFF",
+    "background": "#000000",
+    "selectionBackground": "#FFFF00",
+    "selectionText": "#000000",
+    "shape": "rect",
+    "maxLines": 3,
+    "font": {
+      "family": "system",
+      "size": 14,
+      "weight": "bold"
+    }
+  },
+  "scrollbar": {
+    "style": "flat",
+    "track": "#000000",
+    "thumb": "#FFFFFF",
+    "thumbBorder": "#FFFFFF",
+    "arrows": false,
+    "width": 16,
+    "minimumThumb": 30
+  },
+  "bevelColors": {
+    "face": "#000000",
+    "highlight": "#000000",
+    "light": "#000000",
+    "shadow": "#000000",
+    "darkShadow": "#FFFFFF",
+    "frame": "#FFFFFF"
+  },
+  "icons": {
+    "set": "system"
+  },
+  "sounds": {}
+}

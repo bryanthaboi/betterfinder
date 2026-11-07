@@ -1,0 +1,21 @@
+{
+  "format": 1,
+  "functions": {
+    "zipSelection": {
+      "signature": "command.run@1",
+      "body": [
+        {"if": {"eq": [{"length": {"get": ["input", "selection"]}}, 0]},
+         "then": [{"return": {"record": {"message": "Select something to zip first"}}}]},
+        {"let": "dest", "value": {"await": {"call": "ui.pickDestination", "args": ["Choose where to save the archive"]}}},
+        {"if": {"isNull": {"get": ["dest"]}}, "then": [{"return": {"record": {}}}]},
+        {"let": "ticket", "value": {"await": {"call": "process.archive.create", "args": [
+          {"get": ["input", "selection"]}, {"unwrap": {"get": ["dest"]}}, "Archive", "zip"
+        ]}}},
+        {"return": {"record": {
+          "operationId": {"get": ["ticket", "operationId"]},
+          "message": {"concat": ["Zipping ", {"toString": {"length": {"get": ["input", "selection"]}}}, " items"]}
+        }}}
+      ]
+    }
+  }
+}

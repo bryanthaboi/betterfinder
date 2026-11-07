@@ -1,0 +1,75 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.terminal-panel",
+  "name": "Terminal Panel",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "ts/1",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "ui",
+      "surfaces": [
+        "panel"
+      ]
+    },
+    {
+      "kind": "process.exec",
+      "mode": "unrestricted",
+      "reason": "Run your configured shell command with your full account authority"
+    }
+  ],
+  "contributes": {
+    "panels": [
+      {
+        "id": "terminal",
+        "title": "Terminal",
+        "edge": "bottom",
+        "presentation": "slideOut",
+        "icon": "terminal"
+      }
+    ],
+    "commands": [
+      {
+        "id": "run",
+        "title": "Run Terminal Command",
+        "handler": "run"
+      }
+    ],
+    "settingsPanes": [
+      {
+        "id": "terminal",
+        "title": "Terminal Command",
+        "settings": [
+          "command"
+        ]
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "activate",
+      "handler": "activate",
+      "version": 1
+    },
+    {
+      "name": "command.run",
+      "handler": "run",
+      "version": 1
+    }
+  ],
+  "settings": [
+    {
+      "key": "command",
+      "type": "string",
+      "label": "Shell command",
+      "default": "pwd",
+      "maxLength": 4096
+    }
+  ],
+  "dependencies": [],
+  "conflicts": [],
+  "entry": "scripts/main.ts"
+}

@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "alice.image-dimensions",
+  "title": "Image Dimensions",
+  "author": "alice",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "categories": [
+    "UI",
+    "FILESYSTEM"
+  ],
+  "repo": "https://github.com/alice/betterfinder-image-dimensions",
+  "release": {
+    "tag": "v1.0.0",
+    "commit": "0123456789abcdef0123456789abcdef01234567",
+    "assetURL": "https://github.com/alice/betterfinder-image-dimensions/releases/download/v1.0.0/image-dimensions.bfmod",
+    "bytes": 4096,
+    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "keyId": "alice:2026-01",
+    "signature": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+  },
+  "permissions": [
+    {
+      "kind": "fs.read",
+      "scope": "selection",
+      "recursive": false,
+      "reason": "Read selected image headers"
+    },
+    {
+      "kind": "ui",
+      "surfaces": [
+        "column"
+      ]
+    }
+  ],
+  "summary": "Adds a Dimensions column for images.",
+  "tags": [
+    "images",
+    "column"
+  ],
+  "thumbnail": "thumbnail.png"
+}

@@ -1,0 +1,232 @@
+name: BetterFinder
+options:
+  bundleIdPrefix: com.bryanthaboi
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    ARCHS: arm64
+    ONLY_ACTIVE_ARCH: NO
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  FSCore:
+    path: Packages/FSCore
+  FileOps:
+    path: Packages/FileOps
+  Theming:
+    path: Packages/Theming
+  Integration:
+    path: Packages/Integration
+  Browser:
+    path: Packages/Browser
+  Settings:
+    path: Packages/Settings
+  Updates:
+    path: Packages/Updates
+  ModHost:
+    path: Packages/ModHost
+  AppBridge:
+    path: Packages/AppBridge
+  ModKit:
+    path: Packages/ModKit
+  ModValidation:
+    path: Packages/ModValidation
+  MCPServer:
+    path: Packages/MCPServer
+targets:
+  BetterFinder:
+    type: application
+    platform: macOS
+    sources:
+      - BetterFinder/Sources
+      - path: BetterFinder/Resources
+        optional: true
+    info:
+      path: BetterFinder/Info.plist
+      properties:
+        CFBundleName: betterfinder
+        CFBundleDisplayName: betterfinder
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.utilities
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+        NSSupportsAutomaticTermination: false
+        NSHumanReadableCopyright: "© 2026 bryanthaboi"
+        NSDesktopFolderUsageDescription: betterfinder needs access to your Desktop folder to show its files.
+        NSDocumentsFolderUsageDescription: betterfinder needs access to your Documents folder to show its files.
+        NSDownloadsFolderUsageDescription: betterfinder needs access to your Downloads folder to show its files.
+        NSRemovableVolumesUsageDescription: betterfinder needs access to removable drives to show their files.
+        NSNetworkVolumesUsageDescription: betterfinder needs access to network drives to show their files.
+        NSAppleEventsUsageDescription: betterfinder uses Finder to move items to the Trash with Put Back support.
+        CFBundleDocumentTypes:
+          - CFBundleTypeName: Folder
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Default
+            LSItemContentTypes: [public.folder, public.directory, com.apple.mount-point, public.volume]
+          - CFBundleTypeName: Any Item
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: None
+            LSItemContentTypes: [public.item]
+    entitlements:
+      path: BetterFinder/BetterFinder.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.automation.apple-events: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder
+        PRODUCT_NAME: betterfinder
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+    dependencies:
+      - package: FSCore
+      - package: FileOps
+      - package: Theming
+      - package: Integration
+      - package: Browser
+      - package: Settings
+      - package: Updates
+      - package: ModHost
+        product: ModHost
+      - package: AppBridge
+      - package: ModKit
+      - package: ModValidation
+        product: ModValidation
+      - package: MCPServer
+      - target: BetterFinderModHost
+        embed: true
+        codeSign: true
+      - target: BetterFinderModCheck
+        embed: true
+        codeSign: true
+      - target: BetterFinderIndexer
+        embed: false
+      - target: BetterFinderModCLI
+        embed: false
+    postBuildScripts:
+      - name: Embed size indexer
+        script: |
+          mkdir -p "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchAgents"
+          cp "$BUILT_PRODUCTS_DIR/BetterFinderIndexer" "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/BetterFinderIndexer"
+          cp "$SRCROOT/BetterFinderIndexer/com.bryanthaboi.betterfinder.indexer.plist" "$TARGET_BUILD_DIR/$CONTENTS_FOLDER_PATH/Library/LaunchAgents/"
+        basedOnDependencyAnalysis: false
+      - name: Embed mod CLI
+        script: |
+          cp "$BUILT_PRODUCTS_DIR/betterfinder-mod" "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/betterfinder-mod"
+          codesign -s "${EXPANDED_CODE_SIGN_IDENTITY:--}" -f -o runtime -i com.bryanthaboi.betterfinder.modcli "$TARGET_BUILD_DIR/$EXECUTABLE_FOLDER_PATH/betterfinder-mod"
+        basedOnDependencyAnalysis: false
+  BetterFinderModHost:
+    type: xpc-service
+    platform: macOS
+    sources:
+      - path: BetterFinderModHost
+        excludes: ["*.plist", "*.entitlements"]
+    info:
+      path: BetterFinderModHost/Info.plist
+      properties:
+        CFBundleDisplayName: BetterFinderModHost
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        XPCService:
+          ServiceType: Application
+    entitlements:
+      path: BetterFinderModHost/BetterFinderModHost.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder.modhost
+        PRODUCT_NAME: BetterFinderModHost
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder.modhost.debug
+    dependencies:
+      - package: ModHost
+        product: ModHostRuntime
+  BetterFinderModCheck:
+    type: xpc-service
+    platform: macOS
+    sources:
+      - path: BetterFinderModHost
+        excludes: ["*.plist", "*.entitlements"]
+    info:
+      path: BetterFinderModHost/Check-Info.plist
+      properties:
+        CFBundleDisplayName: BetterFinderModCheck
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        XPCService:
+          ServiceType: Application
+    entitlements:
+      path: BetterFinderModHost/BetterFinderModCheck.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder.modcheck
+        PRODUCT_NAME: BetterFinderModCheck
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+      configs:
+        Debug:
+          PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder.modcheck.debug
+    dependencies:
+      - package: ModHost
+        product: ModHostRuntime
+  BetterFinderIndexer:
+    type: tool
+    platform: macOS
+    sources:
+      - path: BetterFinderIndexer
+        excludes: ["*.plist"]
+    dependencies:
+      - package: FSCore
+    settings:
+      base:
+        PRODUCT_NAME: BetterFinderIndexer
+        PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder.indexer
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+  BetterFinderModCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Packages/ModValidation/Sources/betterfinder-mod
+    dependencies:
+      - package: ModValidation
+        product: ModValidation
+      - package: MCPServer
+      - package: ModHost
+        product: ModHost
+      - package: ModHost
+        product: ModHostRuntime
+      - package: ModHost
+        product: ModHostProtocol
+    settings:
+      base:
+        PRODUCT_NAME: betterfinder-mod
+        PRODUCT_BUNDLE_IDENTIFIER: com.bryanthaboi.betterfinder.modcli
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "-"
+schemes:
+  BetterFinder:
+    build:
+      targets:
+        BetterFinder: all
+    run:
+      config: Debug
+    test:
+      config: Debug

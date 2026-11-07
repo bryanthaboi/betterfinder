@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "preview a file containing `# hello`. expect the title and rendered heading. preview an empty markdown file; expect an empty body.",
+  "automatedRuntimeCoverage": false
+}

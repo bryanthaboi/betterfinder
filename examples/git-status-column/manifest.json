@@ -1,0 +1,60 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.git-status-column",
+  "name": "Git Status Column",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "ts/1",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "fs.read",
+      "scope": "root",
+      "reason": "Read status for the repository you choose",
+      "rootId": "repository",
+      "recursive": true
+    },
+    {
+      "kind": "process.exec",
+      "mode": "broker",
+      "operations": [
+        "git.status"
+      ],
+      "reason": "Read Git status without arbitrary Git arguments"
+    },
+    {
+      "kind": "ui",
+      "surfaces": [
+        "column"
+      ]
+    },
+    {
+      "kind": "ui.selection",
+      "level": "paths",
+      "reason": "Match visible column rows to repository-relative Git paths"
+    }
+  ],
+  "contributes": {
+    "columns": [
+      {
+        "id": "git-status",
+        "title": "Git",
+        "valueType": "string",
+        "handler": "gitValues"
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "column.values",
+      "handler": "gitValues",
+      "version": 1
+    }
+  ],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": [],
+  "entry": "scripts/main.ts"
+}

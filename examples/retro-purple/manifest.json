@@ -1,0 +1,33 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.retro-purple",
+  "name": "Retro Purple",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "data/1",
+  "license": "MIT",
+  "permissions": [],
+  "contributes": {
+    "themes": [
+      {
+        "id": "retro-purple",
+        "title": "Retro Purple",
+        "path": "assets/retro-purple.json",
+        "appearance": "light"
+      }
+    ],
+    "iconSets": [
+      {
+        "id": "purple",
+        "title": "Purple",
+        "path": "assets/icons"
+      }
+    ]
+  },
+  "hooks": [],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": []
+}

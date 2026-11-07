@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "choose a scratch downloads folder with two differently dated files. open downloads \u2192 recent. expect newest first. this bounded example shows one page, up to 128 items.",
+  "automatedRuntimeCoverage": false
+}

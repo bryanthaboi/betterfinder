@@ -1,0 +1,64 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.recent-downloads",
+  "name": "Recent Downloads",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "jsc-ir/1",
+  "entry": "scripts/main.bfscript.json",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "fs.read",
+      "scope": "root",
+      "rootId": "downloads",
+      "recursive": false,
+      "reason": "List the Downloads folder you choose"
+    },
+    {
+      "kind": "ui",
+      "surfaces": [
+        "sidebar",
+        "location"
+      ]
+    }
+  ],
+  "contributes": {
+    "locations": [
+      {
+        "id": "recent-downloads",
+        "title": "Recent Downloads",
+        "scheme": "recent-downloads",
+        "handler": "recentDownloads",
+        "readOnly": true,
+        "icon": "arrow.down.circle"
+      }
+    ],
+    "sidebarSections": [
+      {
+        "id": "downloads",
+        "title": "Downloads",
+        "items": [
+          {
+            "id": "recent",
+            "title": "Recent",
+            "location": "recent-downloads",
+            "icon": "clock"
+          }
+        ]
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "location.list",
+      "handler": "recentDownloads",
+      "version": 1
+    }
+  ],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": []
+}

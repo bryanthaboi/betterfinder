@@ -1,0 +1,3 @@
+import ModHostRuntime
+
+ModHostStdioServer.run()

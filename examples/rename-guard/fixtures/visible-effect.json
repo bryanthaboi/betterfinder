@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "rename a scratch file to `report `; expect denial. rename to `report` or `two words`; expect allow. also check a batch where only one destination ends in a space.",
+  "automatedRuntimeCoverage": false
+}

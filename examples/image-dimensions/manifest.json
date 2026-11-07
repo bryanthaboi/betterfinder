@@ -1,0 +1,46 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.image-dimensions",
+  "name": "Image Dimensions",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "jsc-ir/1",
+  "entry": "scripts/main.bfscript.json",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "fs.read",
+      "scope": "selection",
+      "recursive": false,
+      "reason": "Read selected image headers"
+    },
+    {
+      "kind": "ui",
+      "surfaces": [
+        "column"
+      ]
+    }
+  ],
+  "contributes": {
+    "columns": [
+      {
+        "id": "dimensions",
+        "title": "Dimensions",
+        "valueType": "string",
+        "handler": "dimensions"
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "column.values",
+      "handler": "dimensions",
+      "version": 1
+    }
+  ],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": []
+}

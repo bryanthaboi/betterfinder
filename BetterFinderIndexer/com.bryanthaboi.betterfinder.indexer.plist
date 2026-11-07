@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>Label</key><string>com.bryanthaboi.betterfinder.indexer</string>
+<key>BundleProgram</key><string>Contents/MacOS/BetterFinderIndexer</string>
+<key>MachServices</key><dict><key>com.bryanthaboi.betterfinder.indexer</key><true/></dict>
+<key>ProcessType</key><string>Background</string>
+<key>LowPriorityIO</key><true/>
+<key>Nice</key><integer>20</integer>
+</dict></plist>

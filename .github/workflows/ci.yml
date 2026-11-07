@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: build + test
+    runs-on: macos-15
+    steps:
+      - name: mask runner paths
+        run: echo "::add-mask::$HOME"
+
+      - uses: actions/checkout@v4
+
+      - name: install xcodegen
+        run: brew install xcodegen
+
+      - name: package tests
+        run: |
+          set -euo pipefail
+          for p in Packages/*/; do
+            p="$(basename "$p")"
+            echo "::group::$p"
+            swift test --package-path "Packages/$p" --scratch-path "$RUNNER_TEMP/spm-$p"
+            echo "::endgroup::"
+          done
+
+      - name: build app
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          xcodebuild -project BetterFinder.xcodeproj -scheme BetterFinder -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGN_IDENTITY=- build | tail -20

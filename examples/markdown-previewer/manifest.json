@@ -1,0 +1,48 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.markdown-previewer",
+  "name": "Markdown Previewer",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "ts/1",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "fs.read",
+      "scope": "selection",
+      "reason": "Read the selected Markdown file"
+    },
+    {
+      "kind": "ui",
+      "surfaces": [
+        "preview"
+      ]
+    }
+  ],
+  "contributes": {
+    "previews": [
+      {
+        "id": "markdown",
+        "title": "Markdown",
+        "extensions": [
+          "md",
+          "markdown"
+        ],
+        "handler": "render"
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "preview.render",
+      "handler": "render",
+      "version": 1
+    }
+  ],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": [],
+  "entry": "scripts/main.ts"
+}

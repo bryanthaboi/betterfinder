@@ -1,0 +1,29 @@
+{
+  "id": "modern",
+  "name": "Modern",
+  "base": "system",
+  "colors": {
+    "windowBg": "system:windowBackground",
+    "listBg": "system:controlBackground",
+    "rowAlt": "system:alternateRow",
+    "selection": "system:selection",
+    "selectionText": "system:selectionText",
+    "text": "system:text",
+    "secondaryText": "system:secondaryText",
+    "sidebarBg": "system:clear",
+    "sidebarText": "system:text",
+    "statusBarBg": "system:windowBackground",
+    "statusBarText": "system:secondaryText",
+    "toolbarBg": "system:windowBackground",
+    "accent": "system:accent",
+    "border": "system:separator"
+  },
+  "fonts": {
+    "list": { "family": "system", "size": 13 },
+    "ui": { "family": "system", "size": 11 }
+  },
+  "metrics": {"rowHeight": 28, "cornerRadius": 6, "bevel": "none", "borderWidth": 0, "sidebarRowHeight": 32, "statusBarHeight": 28, "pathBarHeight": 32, "listIconSize": 16, "selectionInset": 6, "selectionVerticalInset": 2, "cellHorizontalInset": 8, "iconTextGap": 8, "iconGridGapH": 12, "iconGridGapV": 16, "iconGridInset": 16, "defaultDensity": "regular"},
+  "chrome": { "titlebar": "native", "toolbarStyle": "native", "scrollbar": "native", "useNativeChrome": true },
+  "icons": { "set": "system" },
+  "sounds": {}
+}

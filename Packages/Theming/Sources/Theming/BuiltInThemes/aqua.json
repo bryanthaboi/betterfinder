@@ -1,0 +1,169 @@
+{
+  "id": "aqua",
+  "name": "Aqua",
+  "base": "light",
+  "colors": {
+    "windowBg": "#ECECEC",
+    "listBg": "#FFFFFF",
+    "rowAlt": "#EDF3FE",
+    "selection": "#356FCC",
+    "selectionText": "#FFFFFF",
+    "text": "#000000",
+    "secondaryText": "#4D4D4D",
+    "sidebarBg": "#DDE4EB",
+    "sidebarText": "#000000",
+    "statusBarBg": "#E5E5E5",
+    "statusBarText": "#333333",
+    "toolbarBg": "#E3E3E3",
+    "accent": "#3875D7",
+    "border": "#A5A5A5",
+    "inactiveSelection": "#D4D4D4",
+    "inactiveSelectionText": "#000000",
+    "sidebarSelection": "#356FCC",
+    "sidebarSelectionText": "#FFFFFF",
+    "toolbarText": "#1A1A1A",
+    "sidebarIcon": "#4A7FCB"
+  },
+  "fonts": {
+    "list": {
+      "family": "Lucida Grande, Helvetica Neue, system",
+      "size": 12
+    },
+    "ui": {
+      "family": "Lucida Grande, Helvetica Neue, system",
+      "size": 11
+    },
+    "sidebar": {
+      "family": "Lucida Grande, Helvetica Neue, system",
+      "size": 12
+    },
+    "statusBar": {
+      "family": "Lucida Grande, Helvetica Neue, system",
+      "size": 11
+    }
+  },
+  "metrics": {
+    "rowHeight": 19,
+    "cornerRadius": 0,
+    "bevel": "none",
+    "borderWidth": 0,
+    "statusBarHeight": 22,
+    "listIconSize": 16,
+    "sidebarRowHeight": 22,
+    "pathBarHeight": 24,
+    "selectionInset": 0,
+    "selectionVerticalInset": 0,
+    "cellHorizontalInset": 4,
+    "iconTextGap": 4,
+    "iconGridGapH": 8,
+    "iconGridGapV": 12,
+    "iconGridInset": 12,
+    "defaultDensity": "compact"
+  },
+  "chrome": {
+    "titlebar": "stripedGradient",
+    "toolbarStyle": "glossy",
+    "scrollbar": "aqua",
+    "useNativeChrome": false
+  },
+  "window": {
+    "titlebar": "stripedGradient",
+    "colors": [
+      "#F6F6F6",
+      "#E2E2E2",
+      "#D4D4D4"
+    ],
+    "inactiveColors": [
+      "#F8F8F8",
+      "#EEEEEE"
+    ],
+    "titleColor": "#000000",
+    "inactiveTitleColor": "#8A8A8A",
+    "titleAlignment": "center",
+    "titleFont": {
+      "family": "Lucida Grande, Helvetica Neue, system",
+      "size": 13
+    },
+    "buttons": "native",
+    "frameColor": "#9A9A9A",
+    "separator": true,
+    "brushedMetal": false,
+    "backgroundPattern": {
+      "kind": "pinstripe",
+      "foreground": "#E9E9E9",
+      "background": "#F3F3F3",
+      "scale": 1
+    }
+  },
+  "toolbar": {
+    "style": "glossy",
+    "surface": "native",
+    "background": "#E3E3E3",
+    "text": "#1A1A1A",
+    "buttonFace": "#F2F2F2",
+    "buttonBorder": "#8E8E8E",
+    "hover": "#FFFFFF",
+    "pressed": "#6E9DE6",
+    "cornerRadius": 11
+  },
+  "header": {
+    "style": "raised",
+    "background": "#E9E9E9",
+    "text": "#000000",
+    "separator": "#B5B5B5",
+    "sortIndicator": "#3875D7",
+    "height": 17,
+    "font": {
+      "family": "Lucida Grande, Helvetica Neue, system",
+      "size": 11
+    }
+  },
+  "pathBar": {
+    "style": "flat",
+    "background": "#E8E8E8",
+    "text": "#333333",
+    "separator": "#9A9A9A",
+    "highlight": "#2C64C4"
+  },
+  "surfaces": {
+    "statusBar": "flat",
+    "sidebar": "native",
+    "list": "native"
+  },
+  "grid": {
+    "horizontal": false,
+    "vertical": false,
+    "color": "#D9D9D9",
+    "style": "solid",
+    "width": 1
+  },
+  "iconLabels": {
+    "text": "#000000",
+    "background": "system:clear",
+    "selectionBackground": "#356FCC",
+    "selectionText": "#FFFFFF",
+    "shape": "pill",
+    "maxLines": 2
+  },
+  "scrollbar": {
+    "style": "aqua",
+    "track": "#D6D6D6",
+    "thumb": "#4F8DE6",
+    "thumbBorder": "#2A5DB0",
+    "arrows": true,
+    "width": 15,
+    "minimumThumb": 24
+  },
+  "bevelColors": {
+    "face": "#E3E3E3",
+    "highlight": "#FFFFFF",
+    "light": "#F2F2F2",
+    "shadow": "#A0A0A0",
+    "darkShadow": "#6E6E6E",
+    "frame": "#6E6E6E"
+  },
+  "icons": {
+    "set": "system"
+  },
+  "sounds": {}
+}

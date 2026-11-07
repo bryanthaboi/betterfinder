@@ -1,0 +1,26 @@
+{
+  "url": "https://api.github.com/repos/bryanthaboi/betterfinder/releases/200",
+  "html_url": "https://github.com/bryanthaboi/betterfinder/releases/tag/v0.1.42",
+  "tag_name": "v0.1.42",
+  "name": "betterfinder 0.1.42",
+  "draft": false,
+  "prerelease": false,
+  "published_at": "2026-11-05T18:22:11Z",
+  "body": "## What's new\n\n- Faster **folder sizes**\n- Fixed a crash in `Quick Look`\n\n```\nswift test\n```\n",
+  "assets": [
+    {
+      "url": "https://api.github.com/repos/bryanthaboi/betterfinder/releases/assets/9001",
+      "name": "betterfinder-0.1.42.dmg",
+      "size": 8000000,
+      "browser_download_url": "https://github.com/bryanthaboi/betterfinder/releases/download/v0.1.42/betterfinder-0.1.42.dmg",
+      "digest": "sha256:aaaa"
+    },
+    {
+      "url": "https://api.github.com/repos/bryanthaboi/betterfinder/releases/assets/9002",
+      "name": "betterfinder-0.1.42-macos.zip",
+      "size": 7000000,
+      "browser_download_url": "https://github.com/bryanthaboi/betterfinder/releases/download/v0.1.42/betterfinder-0.1.42-macos.zip",
+      "digest": "sha256:ABCDEF0123456789"
+    }
+  ]
+}

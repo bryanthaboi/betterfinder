@@ -1,0 +1,1735 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:betterfinder:schema:mod-manifest:1",
+  "title": "betterfinder mod manifest, manifestVersion 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifestVersion",
+    "id",
+    "name",
+    "author",
+    "version",
+    "api",
+    "app",
+    "runtime",
+    "license",
+    "permissions",
+    "contributes",
+    "hooks",
+    "settings",
+    "dependencies",
+    "conflicts"
+  ],
+  "properties": {
+    "manifestVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/modId"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "author": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "api": {
+      "$ref": "#/$defs/semverRange"
+    },
+    "app": {
+      "$ref": "#/$defs/semverRange"
+    },
+    "runtime": {
+      "type": "string",
+      "enum": [
+        "data/1",
+        "jsc-ir/1",
+        "js/1",
+        "ts/1"
+      ]
+    },
+    "entry": {
+      "$ref": "#/$defs/relPath"
+    },
+    "license": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      },
+      "maxItems": 64
+    },
+    "contributes": {
+      "$ref": "#/$defs/contributes"
+    },
+    "hooks": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/hook"
+      },
+      "maxItems": 128
+    },
+    "settings": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/setting"
+      },
+      "maxItems": 128
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/dependency"
+      },
+      "maxItems": 16
+    },
+    "conflicts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/modId"
+      },
+      "maxItems": 16,
+      "uniqueItems": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "runtime": {
+            "const": "data/1"
+          }
+        },
+        "required": [
+          "runtime"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entry": false
+        }
+      },
+      "else": {
+        "required": [
+          "entry"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "runtime": {
+            "const": "jsc-ir/1"
+          }
+        },
+        "required": [
+          "runtime"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entry": {
+            "pattern": "\\.bfscript\\.json$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "runtime": {
+            "const": "js/1"
+          }
+        },
+        "required": [
+          "runtime"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entry": {
+            "pattern": "\\.(js|mjs)$"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "runtime": {
+            "const": "ts/1"
+          }
+        },
+        "required": [
+          "runtime"
+        ]
+      },
+      "then": {
+        "properties": {
+          "entry": {
+            "pattern": "\\.ts$"
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "modId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{2,95}$"
+    },
+    "localId": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,47}$"
+    },
+    "handler": {
+      "type": "string",
+      "pattern": "^[a-zA-Z_][a-zA-Z0-9_]{0,63}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "maxLength": 128
+    },
+    "semverRange": {
+      "type": "string",
+      "pattern": "^ *(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?(?: +(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?)*(?: *\\|\\| *(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?(?: +(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?)*)* *$",
+      "maxLength": 128
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "relPath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*(^|/)\\.\\.?(/|$))(?!.*//)(?!.*\\\\)[^\\u0000-\\u001f]{1,240}$"
+    },
+    "commandRef": {
+      "type": "string",
+      "pattern": "^([a-z][a-z0-9-]{0,47}|builtin\\.[a-z0-9][a-z0-9.-]{0,63})$"
+    },
+    "builtinId": {
+      "type": "string",
+      "pattern": "^builtin\\.[a-z0-9][a-z0-9.-]{0,63}$"
+    },
+    "icon": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9.]{1,64}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "toolbar",
+        "sidebar",
+        "contextMenu",
+        "column",
+        "statusBar",
+        "panel",
+        "preview",
+        "view",
+        "location",
+        "search"
+      ]
+    },
+    "permFsRead": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "fs.read"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "selection",
+            "root"
+          ]
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "rootId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "root"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootId"
+            ]
+          },
+          "else": {
+            "properties": {
+              "rootId": false
+            }
+          }
+        }
+      ]
+    },
+    "permFsWrite": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "fs.write"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "selection",
+            "root",
+            "destination"
+          ]
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "rootId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "root"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootId"
+            ]
+          },
+          "else": {
+            "properties": {
+              "rootId": false
+            }
+          }
+        }
+      ]
+    },
+    "netEndpoint": {
+      "type": "object",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "enum": [
+            "https",
+            "http"
+          ]
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "HEAD",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scheme",
+        "host",
+        "methods"
+      ]
+    },
+    "permNet": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "net"
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/netEndpoint"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "allowPrivate": {
+          "type": "boolean"
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "endpoints",
+        "reason"
+      ]
+    },
+    "permProcessExec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "process.exec"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "broker",
+            "unrestricted"
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-zA-Z0-9]*)+$"
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "mode",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "broker"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "operations"
+            ]
+          },
+          "else": {
+            "properties": {
+              "operations": false
+            }
+          }
+        }
+      ]
+    },
+    "permUi": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ui"
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/surface"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "surfaces"
+      ]
+    },
+    "permUiOverride": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ui.override"
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/surface"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "surfaces",
+        "reason"
+      ]
+    },
+    "permUiSelection": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ui.selection"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "names",
+            "paths",
+            "metadata"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "level",
+        "reason"
+      ]
+    },
+    "permCredentials": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "credentials"
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "destinations",
+        "reason"
+      ]
+    },
+    "permStorage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "storage"
+        },
+        "quotaBytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ]
+    },
+    "permOpsObserve": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "operations.observe"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "move",
+              "trash",
+              "rename"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "operations",
+        "reason"
+      ]
+    },
+    "permOpsIntercept": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "operations.intercept"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "move",
+              "trash",
+              "rename"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "operations",
+        "reason"
+      ]
+    },
+    "permission": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "fs.read",
+            "fs.write",
+            "net",
+            "process.exec",
+            "ui",
+            "ui.override",
+            "ui.selection",
+            "credentials",
+            "storage",
+            "operations.observe",
+            "operations.intercept"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fs.read"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permFsRead"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fs.write"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permFsWrite"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "net"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permNet"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "process.exec"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permProcessExec"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ui"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permUi"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ui.override"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permUiOverride"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ui.selection"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permUiSelection"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "credentials"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permCredentials"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "storage"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permStorage"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "operations.observe"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permOpsObserve"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "operations.intercept"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permOpsIntercept"
+          }
+        }
+      ]
+    },
+    "sidebarItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "knownFolder": {
+          "type": "string",
+          "enum": [
+            "home",
+            "desktop",
+            "documents",
+            "downloads",
+            "applications",
+            "pictures",
+            "movies",
+            "music"
+          ]
+        },
+        "location": {
+          "$ref": "#/$defs/localId"
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "knownFolder"
+          ]
+        },
+        {
+          "required": [
+            "location"
+          ]
+        }
+      ]
+    },
+    "toolbarItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "command": {
+          "$ref": "#/$defs/commandRef"
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "command"
+      ]
+    },
+    "sidebarSection": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sidebarItem"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "items"
+      ]
+    },
+    "contextMenuItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "command": {
+          "$ref": "#/$defs/commandRef"
+        },
+        "target": {
+          "type": "string",
+          "enum": [
+            "items",
+            "background"
+          ]
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "command",
+        "target"
+      ]
+    },
+    "column": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "valueType": {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "bytes",
+            "date",
+            "boolean"
+          ]
+        },
+        "handler": {
+          "$ref": "#/$defs/handler"
+        },
+        "width": {
+          "type": "integer",
+          "minimum": 40,
+          "maximum": 1000
+        },
+        "sortable": {
+          "type": "boolean"
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "valueType",
+        "handler"
+      ]
+    },
+    "statusBarItem": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "alignment": {
+          "type": "string",
+          "enum": [
+            "leading",
+            "trailing"
+          ]
+        },
+        "command": {
+          "$ref": "#/$defs/commandRef"
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title"
+      ]
+    },
+    "panel": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "edge": {
+          "type": "string",
+          "enum": [
+            "left",
+            "right",
+            "bottom"
+          ]
+        },
+        "presentation": {
+          "type": "string",
+          "enum": [
+            "docked",
+            "slideOut"
+          ]
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "edge",
+        "presentation"
+      ]
+    },
+    "preview": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "extensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]{1,16}$"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "handler": {
+          "$ref": "#/$defs/handler"
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "extensions",
+        "handler"
+      ]
+    },
+    "view": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "list",
+            "grid",
+            "columns"
+          ]
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/localId"
+          },
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        },
+        "replaces": {
+          "$ref": "#/$defs/builtinId"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "layout"
+      ]
+    },
+    "location": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "scheme": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{1,23}$"
+        },
+        "handler": {
+          "$ref": "#/$defs/handler"
+        },
+        "readOnly": {
+          "type": "boolean"
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "scheme",
+        "handler",
+        "readOnly"
+      ]
+    },
+    "command": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "handler": {
+          "$ref": "#/$defs/handler"
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "handler"
+      ]
+    },
+    "keybinding": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "key": {
+          "type": "string",
+          "pattern": "^(?:(?:cmd|ctrl|opt|shift)\\+){0,4}(?:[a-z0-9]|f(?:[1-9]|1[0-9]|20)|space|return|tab|delete|escape|up|down|left|right|\\[|\\]|,|\\.|/|-|=)$"
+        },
+        "command": {
+          "$ref": "#/$defs/commandRef"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "key",
+        "command"
+      ]
+    },
+    "settingsPane": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "settings": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-zA-Z0-9_]{0,47}$"
+          },
+          "maxItems": 128,
+          "uniqueItems": true
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "settings"
+      ]
+    },
+    "theme": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "path": {
+          "$ref": "#/$defs/relPath"
+        },
+        "appearance": {
+          "type": "string",
+          "enum": [
+            "light",
+            "dark",
+            "any"
+          ]
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "path",
+        "appearance"
+      ]
+    },
+    "assetSet": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "path": {
+          "$ref": "#/$defs/relPath"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "path"
+      ]
+    },
+    "searchProvider": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/localId"
+        },
+        "title": {
+          "$ref": "#/$defs/title"
+        },
+        "handler": {
+          "$ref": "#/$defs/handler"
+        },
+        "icon": {
+          "$ref": "#/$defs/icon"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "handler"
+      ]
+    },
+    "contributes": {
+      "type": "object",
+      "properties": {
+        "toolbar": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/toolbarItem"
+          },
+          "maxItems": 64
+        },
+        "sidebarSections": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sidebarSection"
+          },
+          "maxItems": 64
+        },
+        "contextMenu": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/contextMenuItem"
+          },
+          "maxItems": 64
+        },
+        "columns": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/column"
+          },
+          "maxItems": 64
+        },
+        "statusBar": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/statusBarItem"
+          },
+          "maxItems": 64
+        },
+        "panels": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/panel"
+          },
+          "maxItems": 64
+        },
+        "previews": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/preview"
+          },
+          "maxItems": 64
+        },
+        "views": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/view"
+          },
+          "maxItems": 64
+        },
+        "locations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/location"
+          },
+          "maxItems": 64
+        },
+        "commands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/command"
+          },
+          "maxItems": 64
+        },
+        "keybindings": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/keybinding"
+          },
+          "maxItems": 64
+        },
+        "settingsPanes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/settingsPane"
+          },
+          "maxItems": 64
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/theme"
+          },
+          "maxItems": 64
+        },
+        "iconSets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assetSet"
+          },
+          "maxItems": 64
+        },
+        "sounds": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/assetSet"
+          },
+          "maxItems": 64
+        },
+        "searchProviders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/searchProvider"
+          },
+          "maxItems": 64
+        }
+      },
+      "additionalProperties": false
+    },
+    "hook": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z]+(\\.[a-z]+)*$",
+          "maxLength": 64
+        },
+        "handler": {
+          "$ref": "#/$defs/handler"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "handler",
+        "version"
+      ]
+    },
+    "settingOption": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "label"
+      ]
+    },
+    "setting": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-zA-Z0-9_]{0,47}$"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "boolean",
+            "integer",
+            "number",
+            "string",
+            "enum"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "default": {
+          "type": [
+            "boolean",
+            "integer",
+            "number",
+            "string"
+          ]
+        },
+        "minimum": {
+          "type": "number"
+        },
+        "maximum": {
+          "type": "number"
+        },
+        "maxLength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4096
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/settingOption"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "type",
+        "label",
+        "default"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "boolean"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "boolean"
+              },
+              "options": false,
+              "minimum": false,
+              "maximum": false,
+              "maxLength": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "integer"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "integer"
+              },
+              "minimum": {
+                "type": "integer"
+              },
+              "maximum": {
+                "type": "integer"
+              },
+              "options": false,
+              "maxLength": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "number"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "number"
+              },
+              "options": false,
+              "maxLength": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "string"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "default": {
+                "type": "string"
+              },
+              "options": false,
+              "minimum": false,
+              "maximum": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "enum"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "options"
+            ],
+            "properties": {
+              "default": {
+                "type": "string"
+              },
+              "minimum": false,
+              "maximum": false,
+              "maxLength": false
+            }
+          }
+        }
+      ]
+    },
+    "dependency": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/modId"
+        },
+        "version": {
+          "$ref": "#/$defs/semver"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "sha256"
+      ]
+    }
+  }
+}

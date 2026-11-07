@@ -1,0 +1,158 @@
+{
+  "id": "examples.retro-purple",
+  "name": "Retro Purple",
+  "base": "light",
+  "colors": {
+    "windowBg": "#E9DDF3",
+    "listBg": "#FFFFFF",
+    "rowAlt": "",
+    "selection": "#63329A",
+    "selectionText": "#FFFFFF",
+    "text": "#000000",
+    "secondaryText": "#333333",
+    "sidebarBg": "#E9DDF3",
+    "sidebarText": "#000000",
+    "statusBarBg": "#DDDDDD",
+    "statusBarText": "#000000",
+    "toolbarBg": "#DDDDDD",
+    "accent": "#63329A",
+    "border": "#888888",
+    "inactiveSelection": "#BBBBBB",
+    "inactiveSelectionText": "#000000",
+    "sidebarSelection": "#63329A",
+    "sidebarSelectionText": "#FFFFFF",
+    "toolbarText": "#000000",
+    "sidebarIcon": "#63329A"
+  },
+  "fonts": {
+    "list": {
+      "family": "Geneva, Lucida Grande, system",
+      "size": 12
+    },
+    "ui": {
+      "family": "Charcoal, Geneva, Lucida Grande, system",
+      "size": 11
+    },
+    "sidebar": {
+      "family": "Geneva, Lucida Grande, system",
+      "size": 12
+    },
+    "statusBar": {
+      "family": "Geneva, system",
+      "size": 11
+    }
+  },
+  "metrics": {
+    "rowHeight": 18,
+    "cornerRadius": 0,
+    "bevel": "raised",
+    "borderWidth": 0,
+    "statusBarHeight": 20,
+    "listIconSize": 16
+  },
+  "chrome": {
+    "titlebar": "pinstripe",
+    "toolbarStyle": "bevel",
+    "scrollbar": "platinum",
+    "useNativeChrome": false
+  },
+  "window": {
+    "titlebar": "pinstripe",
+    "colors": [
+      "#E2E2E2",
+      "#CCCCCC",
+      "#999999",
+      "#FFFFFF"
+    ],
+    "inactiveColors": [
+      "#DDDDDD"
+    ],
+    "titleColor": "#000000",
+    "inactiveTitleColor": "#808080",
+    "titleAlignment": "center",
+    "titleFont": {
+      "family": "Charcoal, Geneva, Lucida Grande, system",
+      "size": 12,
+      "weight": "bold"
+    },
+    "buttons": "classicBoxes",
+    "buttonFace": "#CCCCCC",
+    "buttonGlyph": "#000000",
+    "buttonBevel": true,
+    "buttonSize": 13,
+    "showsMinimize": true,
+    "frameColor": "#555555",
+    "separator": true
+  },
+  "toolbar": {
+    "style": "bevel",
+    "surface": "raised",
+    "background": "#DDDDDD",
+    "text": "#000000",
+    "buttonFace": "#E6E6E6",
+    "buttonBorder": "#333333",
+    "hover": "#EEEEEE",
+    "pressed": "#888888",
+    "cornerRadius": 4
+  },
+  "header": {
+    "style": "raised",
+    "background": "#DDDDDD",
+    "text": "#000000",
+    "separator": "#888888",
+    "sortIndicator": "#000000",
+    "height": 18,
+    "font": {
+      "family": "Geneva, system",
+      "size": 11
+    }
+  },
+  "pathBar": {
+    "style": "raised",
+    "background": "#DDDDDD",
+    "text": "#000000",
+    "separator": "#555555",
+    "highlight": "#3333CC"
+  },
+  "surfaces": {
+    "statusBar": "raised",
+    "sidebar": "flat",
+    "list": "native"
+  },
+  "grid": {
+    "horizontal": false,
+    "vertical": false,
+    "color": "#CCCCCC",
+    "style": "solid",
+    "width": 1
+  },
+  "iconLabels": {
+    "text": "#000000",
+    "background": "system:clear",
+    "selectionBackground": "#000000",
+    "selectionText": "#FFFFFF",
+    "shape": "rect",
+    "maxLines": 2
+  },
+  "scrollbar": {
+    "style": "platinum",
+    "track": "#AAAAAA",
+    "thumb": "#CCCCFF",
+    "thumbBorder": "#000000",
+    "arrows": true,
+    "width": 15,
+    "minimumThumb": 22
+  },
+  "bevelColors": {
+    "face": "#DDDDDD",
+    "highlight": "#FFFFFF",
+    "light": "#EEEEEE",
+    "shadow": "#999999",
+    "darkShadow": "#444444",
+    "frame": "#000000"
+  },
+  "icons": {
+    "set": "examples.retro-purple/purple"
+  },
+  "sounds": {}
+}

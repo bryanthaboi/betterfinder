@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:betterfinder:schema:mod-author-test:1",
+  "title": "betterfinder mod author test (tests/*.bftest.json)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["hook", "input", "expect"],
+  "properties": {
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "hook": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9.-]{0,63}$" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 99 },
+    "handler": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]{0,63}$" },
+    "input": {},
+    "expect": { "$ref": "#/$defs/expect" }
+  },
+  "$defs": {
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "maxProperties": 1,
+      "properties": {
+        "equals": {},
+        "contains": {},
+        "matches": { "type": "string", "minLength": 1, "maxLength": 512 },
+        "error": {
+          "oneOf": [
+            { "type": "string", "minLength": 1, "maxLength": 256 },
+            { "const": true }
+          ]
+        }
+      }
+    }
+  }
+}

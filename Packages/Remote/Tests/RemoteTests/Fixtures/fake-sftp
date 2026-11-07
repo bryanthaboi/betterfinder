@@ -1,0 +1,193 @@
+#!/bin/bash
+CONF=""
+BATCH=""
+HOST=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    -F) CONF="$2"; shift 2 ;;
+    -b) BATCH="$2"; shift 2 ;;
+    --) shift; HOST="$1"; shift ;;
+    -*) shift ;;
+    *) HOST="$1"; shift ;;
+  esac
+done
+
+log() { [ -n "$FAKE_SFTP_LOG" ] && printf '%s\n' "$*" >> "$FAKE_SFTP_LOG"; }
+log "ARGS -F $CONF -b $BATCH -- $HOST"
+
+if [ "$BATCH" != "-" ] || [ -z "$CONF" ] || ! grep -q "StrictHostKeyChecking yes" "$CONF" || ! grep -q "BatchMode yes" "$CONF" || ! grep -q "PasswordAuthentication no" "$CONF"; then
+  echo "fake-sftp: refusing to run without the controlled configuration" >&2
+  exit 255
+fi
+
+if [ -n "$FAKE_SFTP_FAILS" ] && [ -f "$FAKE_SFTP_FAILS" ]; then
+  n=$(cat "$FAKE_SFTP_FAILS")
+  if [ "$n" -gt 0 ] 2>/dev/null; then
+    echo $((n - 1)) > "$FAKE_SFTP_FAILS"
+    log "DROP"
+    printf 'Connection closed by %s port 22\nConnection closed\n' "$HOST" >&2
+    exit 255
+  fi
+fi
+
+if [ -n "$FAKE_SFTP_HOSTKEY" ]; then
+  KH=$(sed -n 's/.*UserKnownHostsFile "\([^"]*\)".*/\1/p' "$CONF" | head -1 | sed 's/%%/%/g')
+  if [ -z "$KH" ] || [ ! -f "$KH" ] || ! grep -qF "$FAKE_SFTP_HOSTKEY" "$KH"; then
+    if [ "$FAKE_SFTP_KEY_CHANGED" = "1" ]; then
+      printf '@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @\n@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\nHost key verification failed.\nConnection closed\n' >&2
+    else
+      printf 'No ED25519 host key is known for %s and you have requested strict checking.\nHost key verification failed.\nConnection closed\n' "$HOST" >&2
+    fi
+    exit 255
+  fi
+fi
+
+ROOT="${FAKE_SFTP_ROOT:?}"
+PWD_REMOTE="${FAKE_SFTP_HOME:-/home/tester}"
+
+TOKENS=()
+tokenize() {
+  local s="$1" i=0 n=${#1} cur="" inq=0 have=0 c nx
+  TOKENS=()
+  while [ $i -lt $n ]; do
+    c="${s:$i:1}"
+    if [ $inq -eq 1 ]; then
+      if [ "$c" = "\\" ]; then
+        nx="${s:$((i+1)):1}"
+        case "$nx" in
+          '"'|'*'|'?'|'[') cur="$cur$nx"; i=$((i+2)); continue ;;
+          *) cur="$cur$c"; i=$((i+1)); continue ;;
+        esac
+      elif [ "$c" = '"' ]; then
+        inq=0; i=$((i+1)); continue
+      else
+        cur="$cur$c"; i=$((i+1)); continue
+      fi
+    fi
+    case "$c" in
+      "\\") cur="$cur${s:$((i+1)):1}"; have=1; i=$((i+2)); continue ;;
+      '"') inq=1; have=1 ;;
+      ' ') if [ $have -eq 1 ]; then TOKENS+=("$cur"); cur=""; have=0; fi ;;
+      *) cur="$cur$c"; have=1 ;;
+    esac
+    i=$((i+1))
+  done
+  if [ $have -eq 1 ]; then TOKENS+=("$cur"); fi
+}
+
+abs() {
+  case "$1" in
+    /*) printf '%s' "$1" ;;
+    *) printf '%s/%s' "$PWD_REMOTE" "$1" ;;
+  esac
+}
+
+lsline() {
+  local f="$1" shown="$2" meta when
+  meta=$(stat -f '%Sp %l %u %g %z' "$f")
+  when=$(LC_ALL=en_US.UTF-8 stat -f '%Sm' -t '%b %d %H:%M' "$f")
+  set -- $meta
+  printf '%s %3u %-8s %-8s %8s %s %s\n' "$1" "$2" "$3" "$4" "$5" "$when" "$shown"
+}
+
+fail() {
+  printf '%s\n' "$1" >&2
+  if [ "$LENIENT" -eq 0 ]; then exit 1; fi
+}
+
+while IFS= read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  log "CMD $line"
+  printf 'sftp> %s\n' "$line"
+  if [ -n "$FAKE_SFTP_DELAY" ]; then sleep "$FAKE_SFTP_DELAY"; fi
+  if [ -n "$FAKE_SFTP_DROP_CMD" ] && printf '%s\n' "$line" | grep -Eq "$FAKE_SFTP_DROP_CMD"; then
+    log "DROPPED $line"
+    printf 'Connection closed by %s port 22\nConnection closed\n' "$HOST" >&2
+    exit 255
+  fi
+  if [ -n "$FAKE_SFTP_PAUSE_CMD" ] && [ -n "$FAKE_SFTP_PAUSE_MARK" ] && [ ! -e "$FAKE_SFTP_PAUSE_MARK" ] && printf '%s\n' "$line" | grep -Eq "$FAKE_SFTP_PAUSE_CMD"; then
+    if [ -z "$FAKE_SFTP_PAUSE_AFTER" ] || grep -Eq "$FAKE_SFTP_PAUSE_AFTER" "$FAKE_SFTP_LOG"; then
+      log "PAUSED $line"
+      : > "$FAKE_SFTP_PAUSE_MARK"
+      n=0
+      while [ ! -e "$FAKE_SFTP_PAUSE_MARK.go" ] && [ $n -lt 200 ]; do sleep 0.05; n=$((n+1)); done
+      log "RESUMED $line"
+    fi
+  fi
+  LENIENT=0
+  case "$line" in -*) LENIENT=1; line="${line#-}" ;; esac
+  if [ -n "$FAKE_SFTP_FAIL_CMD" ] && printf '%s\n' "$line" | grep -Eq "$FAKE_SFTP_FAIL_CMD"; then
+    log "REFUSED $line"
+    fail "Couldn't execute \"$line\": Failure"
+    continue
+  fi
+  tokenize "$line"
+  cmd="${TOKENS[0]}"
+  case "$cmd" in
+    pwd)
+      printf 'Remote working directory: %s\n' "$PWD_REMOTE"
+      ;;
+    ls)
+      p=$(abs "${TOKENS[2]}")
+      t="$ROOT$p"
+      if [ -d "$t" ]; then
+        lsline "$t" "$p/."
+        for e in "$t"/.* "$t"/*; do
+          b=$(basename "$e")
+          [ "$b" = "." ] || [ "$b" = ".." ] && continue
+          [ -e "$e" ] || [ -L "$e" ] || continue
+          if [ "$p" = "/" ]; then lsline "$e" "/$b"; else lsline "$e" "$p/$b"; fi
+        done
+      elif [ -e "$t" ]; then
+        lsline "$t" "$p"
+      else
+        fail "Can't ls: \"$p\" not found"
+      fi
+      ;;
+    get)
+      r=$(abs "${TOKENS[1]}"); l="${TOKENS[2]}"
+      if [ -f "$ROOT$r" ]; then
+        printf 'Fetching %s to %s\n' "$r" "$l"
+        cp "$ROOT$r" "$l" || fail "Couldn't write to \"$l\""
+      else
+        fail "File \"$r\" not found."
+      fi
+      ;;
+    put)
+      l="${TOKENS[1]}"; r=$(abs "${TOKENS[2]}")
+      if [ ! -f "$l" ]; then fail "stat local \"$l\": No such file or directory"
+      elif [ ! -d "$(dirname "$ROOT$r")" ]; then fail "dest open \"$r\": No such file or directory"
+      else
+        printf 'Uploading %s to %s\n' "$l" "$r"
+        if [ "$FAKE_SFTP_SHORT_PUT" = "1" ]; then
+          sz=$(stat -f %z "$l")
+          head -c $(( sz > 0 ? sz - 1 : 0 )) "$l" > "$ROOT$r"
+        else
+          cp "$l" "$ROOT$r"
+        fi
+      fi
+      ;;
+    rename)
+      a=$(abs "${TOKENS[1]}"); b=$(abs "${TOKENS[2]}")
+      if [ ! -e "$ROOT$a" ]; then fail "Couldn't rename file \"$a\" to \"$b\": No such file or directory"
+      elif [ "$FAKE_SFTP_LEGACY_RENAME" = "1" ] && { [ -e "$ROOT$b" ] || [ -L "$ROOT$b" ]; }; then fail "Couldn't rename file \"$a\" to \"$b\": Failure"
+      else mv -f "$ROOT$a" "$ROOT$b"; fi
+      ;;
+    rm)
+      p=$(abs "${TOKENS[1]}")
+      if [ -f "$ROOT$p" ] || [ -L "$ROOT$p" ]; then rm -f "$ROOT$p"; else fail "Couldn't delete file: No such file or directory"; fi
+      ;;
+    rmdir)
+      p=$(abs "${TOKENS[1]}")
+      rmdir "$ROOT$p" 2>/dev/null || fail "Couldn't remove directory: Failure"
+      ;;
+    mkdir)
+      p=$(abs "${TOKENS[1]}")
+      mkdir "$ROOT$p" 2>/dev/null || fail "Couldn't create directory: Failure"
+      ;;
+    *)
+      fail "Invalid command."
+      ;;
+  esac
+done
+exit 0

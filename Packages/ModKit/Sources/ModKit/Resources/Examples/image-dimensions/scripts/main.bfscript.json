@@ -1,0 +1,11 @@
+{
+  "format": 1,
+  "functions": {
+    "dimensions": {
+      "signature": "column.values@1",
+      "body": [
+        {"return": {"await": {"call": "media.imageDimensions", "args": [{"get": ["input", "items"]}]}}}
+      ]
+    }
+  }
+}

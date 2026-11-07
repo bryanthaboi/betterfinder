@@ -1,0 +1,25 @@
+{
+  "manifestVersion": 1,
+  "id": "alice.pinned-folders",
+  "name": "Pinned Folders",
+  "author": "alice",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "data/1",
+  "license": "MIT",
+  "permissions": [
+    {"kind": "ui", "surfaces": ["sidebar"]}
+  ],
+  "contributes": {
+    "sidebarSections": [{"id": "pinned", "title": "Pinned", "items": [
+      {"id": "downloads", "title": "Downloads", "knownFolder": "downloads", "icon": "arrow.down.circle"},
+      {"id": "documents", "title": "Documents", "knownFolder": "documents", "icon": "doc"}
+    ]}],
+    "keybindings": [{"id": "go-downloads", "key": "cmd+opt+d", "command": "builtin.go-downloads"}]
+  },
+  "hooks": [],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": []
+}

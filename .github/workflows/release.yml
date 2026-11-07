@@ -1,0 +1,91 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: version (e.g. 0.1.0)
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mac-signing-keychain
+  cancel-in-progress: false
+
+jobs:
+  mac:
+    name: sign + notarize
+    runs-on: [self-hosted, macOS, betterfinder]
+    permissions:
+      contents: write
+    steps:
+      - name: mask runner paths
+        run: echo "::add-mask::$HOME"
+
+      - uses: actions/checkout@v4
+
+      - name: version
+        id: v
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          v="$RELEASE_VERSION"
+          if [ -z "$v" ] && [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; fi
+          if [ -z "$v" ]; then
+            base="$(sed -n 's/^ *MARKETING_VERSION: *"\{0,1\}\([0-9.]*\)"\{0,1\}.*/\1/p' project.yml | head -1)"
+            v="${base%.*}.${{ github.run_number }}"
+          fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::invalid version"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
+      - name: tests
+        run: |
+          set -euo pipefail
+          for p in Packages/*/; do
+            p="$(basename "$p")"
+            echo "::group::$p"
+            swift test --package-path "Packages/$p" --scratch-path "$RUNNER_TEMP/spm-$p"
+            echo "::endgroup::"
+          done
+
+      - name: import signing keychain
+        uses: ./.github/actions/mac-signing-keychain
+
+      - name: build, sign, notarize
+        run: |
+          set -euo pipefail
+          ci_dir="${POKEMON_CI_DIR:-$HOME/.config/pokemon-ci}"
+          [ -f "$ci_dir/notary.env" ] || { echo "::error::missing notary.env"; exit 1; }
+          source "$ci_dir/notary.env"
+          echo "::add-mask::$APPLE_ID"
+          echo "::add-mask::$APPLE_APP_PASSWORD"
+          scripts/release.sh "${{ steps.v.outputs.version }}" "${{ github.run_number }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: betterfinder-${{ steps.v.outputs.version }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+          if-no-files-found: error
+
+      - name: github release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${{ steps.v.outputs.version }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.dmg dist/*.zip --clobber
+          else
+            gh release create "$tag" dist/*.dmg dist/*.zip --target "$GITHUB_SHA" --title "betterfinder ${{ steps.v.outputs.version }}" --generate-notes --latest
+          fi
+
+      - name: clean up keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/betterfinder-signing.keychain-db" 2>/dev/null || true

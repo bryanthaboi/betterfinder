@@ -1,0 +1,801 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:betterfinder:schema:mod-index-listing:1",
+  "title": "betterfinder mod index listing (mods/Author@id/meta.json), schemaVersion 1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "id",
+    "title",
+    "author",
+    "version",
+    "api",
+    "app",
+    "categories",
+    "repo",
+    "release",
+    "permissions"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "id": {
+      "$ref": "#/$defs/modId"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "author": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,38}$"
+    },
+    "version": {
+      "$ref": "#/$defs/semver"
+    },
+    "api": {
+      "$ref": "#/$defs/semverRange"
+    },
+    "app": {
+      "$ref": "#/$defs/semverRange"
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "UI",
+          "WORKFLOW",
+          "PREVIEW",
+          "SEARCH",
+          "FILESYSTEM",
+          "THEME",
+          "AUTOMATION"
+        ]
+      },
+      "minItems": 1,
+      "maxItems": 7,
+      "uniqueItems": true
+    },
+    "repo": {
+      "type": "string",
+      "pattern": "^https://github\\.com/[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9._-]{1,100}$"
+    },
+    "release": {
+      "$ref": "#/$defs/release"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      },
+      "maxItems": 64
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9][a-z0-9-]{0,23}$"
+      },
+      "maxItems": 8,
+      "uniqueItems": true
+    },
+    "thumbnail": {
+      "type": "string",
+      "pattern": "^thumbnail\\.png$"
+    }
+  },
+  "$defs": {
+    "modId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]{2,95}$"
+    },
+    "semver": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "maxLength": 128
+    },
+    "semverRange": {
+      "type": "string",
+      "pattern": "^ *(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?(?: +(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?)*(?: *\\|\\| *(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?(?: +(?:>=|<=|>|<|=|\\^|~)?(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})\\.(?:0|[1-9][0-9]{0,8})(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?)*)* *$",
+      "maxLength": 128
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "toolbar",
+        "sidebar",
+        "contextMenu",
+        "column",
+        "statusBar",
+        "panel",
+        "preview",
+        "view",
+        "location",
+        "search"
+      ]
+    },
+    "permFsRead": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "fs.read"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "selection",
+            "root"
+          ]
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "rootId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "root"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootId"
+            ]
+          },
+          "else": {
+            "properties": {
+              "rootId": false
+            }
+          }
+        }
+      ]
+    },
+    "permFsWrite": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "fs.write"
+        },
+        "scope": {
+          "type": "string",
+          "enum": [
+            "selection",
+            "root",
+            "destination"
+          ]
+        },
+        "recursive": {
+          "type": "boolean"
+        },
+        "rootId": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,31}$"
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "scope",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "scope": {
+                "const": "root"
+              }
+            },
+            "required": [
+              "scope"
+            ]
+          },
+          "then": {
+            "required": [
+              "rootId"
+            ]
+          },
+          "else": {
+            "properties": {
+              "rootId": false
+            }
+          }
+        }
+      ]
+    },
+    "netEndpoint": {
+      "type": "object",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "enum": [
+            "https",
+            "http"
+          ]
+        },
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "methods": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "GET",
+              "HEAD",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 6,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "scheme",
+        "host",
+        "methods"
+      ]
+    },
+    "permNet": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "net"
+        },
+        "endpoints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/netEndpoint"
+          },
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "allowPrivate": {
+          "type": "boolean"
+        },
+        "maxBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 268435456
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "endpoints",
+        "reason"
+      ]
+    },
+    "permProcessExec": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "process.exec"
+        },
+        "mode": {
+          "type": "string",
+          "enum": [
+            "broker",
+            "unrestricted"
+          ]
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9]*(\\.[a-z][a-zA-Z0-9]*)+$"
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "mode",
+        "reason"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "mode": {
+                "const": "broker"
+              }
+            },
+            "required": [
+              "mode"
+            ]
+          },
+          "then": {
+            "required": [
+              "operations"
+            ]
+          },
+          "else": {
+            "properties": {
+              "operations": false
+            }
+          }
+        }
+      ]
+    },
+    "permUi": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ui"
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/surface"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "surfaces"
+      ]
+    },
+    "permUiOverride": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ui.override"
+        },
+        "surfaces": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/surface"
+          },
+          "minItems": 1,
+          "maxItems": 10,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "surfaces",
+        "reason"
+      ]
+    },
+    "permUiSelection": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "ui.selection"
+        },
+        "level": {
+          "type": "string",
+          "enum": [
+            "names",
+            "paths",
+            "metadata"
+          ]
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "level",
+        "reason"
+      ]
+    },
+    "permCredentials": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "credentials"
+        },
+        "destinations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$"
+          },
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "destinations",
+        "reason"
+      ]
+    },
+    "permStorage": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "storage"
+        },
+        "quotaBytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 16777216
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ]
+    },
+    "permOpsObserve": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "operations.observe"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "move",
+              "trash",
+              "rename"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "operations",
+        "reason"
+      ]
+    },
+    "permOpsIntercept": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "const": "operations.intercept"
+        },
+        "operations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "copy",
+              "move",
+              "trash",
+              "rename"
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "uniqueItems": true
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "operations",
+        "reason"
+      ]
+    },
+    "permission": {
+      "type": "object",
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "fs.read",
+            "fs.write",
+            "net",
+            "process.exec",
+            "ui",
+            "ui.override",
+            "ui.selection",
+            "credentials",
+            "storage",
+            "operations.observe",
+            "operations.intercept"
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fs.read"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permFsRead"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "fs.write"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permFsWrite"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "net"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permNet"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "process.exec"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permProcessExec"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ui"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permUi"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ui.override"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permUiOverride"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "ui.selection"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permUiSelection"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "credentials"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permCredentials"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "storage"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permStorage"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "operations.observe"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permOpsObserve"
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "operations.intercept"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "$ref": "#/$defs/permOpsIntercept"
+          }
+        }
+      ]
+    },
+    "release": {
+      "type": "object",
+      "properties": {
+        "tag": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$"
+        },
+        "commit": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "assetURL": {
+          "type": "string",
+          "pattern": "^https://[^\\s]{1,2000}$"
+        },
+        "bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 67108864
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "keyId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,128}$"
+        },
+        "signature": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "tag",
+        "commit",
+        "assetURL",
+        "bytes",
+        "sha256",
+        "keyId",
+        "signature"
+      ]
+    }
+  }
+}

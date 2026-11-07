@@ -1,0 +1,26 @@
+{
+  "name": "ordinary",
+  "hook": "fileop.before.rename",
+  "input": {
+    "operationId": "op",
+    "attemptId": "attempt",
+    "origin": "user",
+    "operation": "rename",
+    "items": [
+      {
+        "itemId": "one",
+        "source": {
+          "handle": "file-1",
+          "name": "old",
+          "kind": "file"
+        },
+        "destinationName": "report"
+      }
+    ]
+  },
+  "expect": {
+    "equals": {
+      "decision": "allow"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "choose a test repo with one modified file and one untracked file. expect modified/untracked on those rows and blank cells for clean files. paths must be relative to the chosen repo root; missing path metadata gives blank cells.",
+  "automatedRuntimeCoverage": false
+}

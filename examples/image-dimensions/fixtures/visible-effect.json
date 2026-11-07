@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "select a 32 \u00d7 32 png and a text file. expect a dimensions cell for the image and an empty cell for the text file.",
+  "automatedRuntimeCoverage": false
+}

@@ -1,0 +1,67 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.zip-selection",
+  "name": "Zip Selection",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "jsc-ir/1",
+  "entry": "scripts/main.bfscript.json",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "fs.read",
+      "scope": "selection",
+      "recursive": true,
+      "reason": "Read the items you select to archive them"
+    },
+    {
+      "kind": "fs.write",
+      "scope": "destination",
+      "reason": "Write the archive into the folder you choose"
+    },
+    {
+      "kind": "process.exec",
+      "mode": "broker",
+      "operations": [
+        "archive.create"
+      ],
+      "reason": "Create the archive with the built-in archiver"
+    },
+    {
+      "kind": "ui",
+      "surfaces": [
+        "toolbar"
+      ]
+    }
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "id": "zip-selection",
+        "title": "Zip Selection",
+        "handler": "zipSelection",
+        "category": "Archive"
+      }
+    ],
+    "toolbar": [
+      {
+        "id": "zip",
+        "title": "Zip",
+        "command": "zip-selection",
+        "icon": "archivebox"
+      }
+    ]
+  },
+  "hooks": [
+    {
+      "name": "command.run",
+      "handler": "zipSelection",
+      "version": 1
+    }
+  ],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": []
+}

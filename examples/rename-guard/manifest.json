@@ -1,0 +1,32 @@
+{
+  "manifestVersion": 1,
+  "id": "examples.rename-guard",
+  "name": "Rename Guard",
+  "author": "examples",
+  "version": "1.0.0",
+  "api": ">=1.0.0 <2.0.0",
+  "app": ">=1.0.0 <2.0.0",
+  "runtime": "js/1",
+  "license": "MIT",
+  "permissions": [
+    {
+      "kind": "operations.intercept",
+      "operations": [
+        "rename"
+      ],
+      "reason": "Deny destination names ending with a space"
+    }
+  ],
+  "contributes": {},
+  "hooks": [
+    {
+      "name": "fileop.before.rename",
+      "handler": "guardRename",
+      "version": 1
+    }
+  ],
+  "settings": [],
+  "dependencies": [],
+  "conflicts": [],
+  "entry": "scripts/main.js"
+}

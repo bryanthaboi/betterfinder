@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "functions": {
+    "recentDownloads": {
+      "signature": "location.list@1",
+      "body": [
+        {"let": "root", "value": {"await": {"call": "fs.root", "args": ["downloads"]}}},
+        {"if": {"isNull": {"get": ["root"]}}, "then": [{"return": {"record": {"items": {"list": []}}}}]},
+        {"let": "page", "value": {"await": {"call": "fs.list", "args": [{"unwrap": {"get": ["root"]}}, {"get": ["input", "limit"]}, "modifiedDescending"]}}},
+        {"let": "out", "type": {"list": "ResourceEntry"}, "value": {"list": []}},
+        {"forEach": "entry", "in": {"get": ["page", "entries"]}, "max": 128, "body": [
+          {"checkCancelled": true},
+          {"append": "out", "value": {"record": {
+            "id": {"get": ["entry", "handle"]},
+            "name": {"get": ["entry", "name"]},
+            "kind": {"get": ["entry", "kind"]},
+            "size": {"get": ["entry", "size"]},
+            "modified": {"get": ["entry", "modified"]}
+          }}}
+        ]},
+        {"return": {"record": {"items": {"get": ["out"]}}}}
+      ]
+    }
+  }
+}

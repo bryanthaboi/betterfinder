@@ -1,0 +1,5 @@
+{
+  "manual": true,
+  "steps": "select retro purple in appearance; expect purple selection and purple file/folder icons. switch back to modern; expect system appearance. disable the mod; its assets should disappear.",
+  "automatedRuntimeCoverage": false
+}

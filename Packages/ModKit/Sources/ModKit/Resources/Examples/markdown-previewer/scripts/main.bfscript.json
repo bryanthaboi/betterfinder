@@ -1,0 +1,15 @@
+{
+  "format": 1,
+  "functions": {
+    "renderMarkdown": {
+      "signature": "preview.render@1",
+      "body": [
+        {"let": "text", "value": {"await": {"call": "fs.readText", "args": [{"get": ["input", "item"]}, {"get": ["input", "maxBytes"]}]}}},
+        {"return": {"record": {
+          "title": {"get": ["input", "item", "name"]},
+          "node": {"record": {"type": "markdown", "text": {"get": ["text"]}}}
+        }}}
+      ]
+    }
+  }
+}

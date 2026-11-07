@@ -1,0 +1,175 @@
+{
+  "id": "classic-windows",
+  "name": "Classic Windows",
+  "base": "light",
+  "colors": {
+    "windowBg": "#C0C0C0",
+    "listBg": "#FFFFFF",
+    "rowAlt": "",
+    "selection": "#000080",
+    "selectionText": "#FFFFFF",
+    "text": "#000000",
+    "secondaryText": "#000000",
+    "sidebarBg": "#FFFFFF",
+    "sidebarText": "#000000",
+    "statusBarBg": "#C0C0C0",
+    "statusBarText": "#000000",
+    "toolbarBg": "#C0C0C0",
+    "accent": "#000080",
+    "border": "#808080",
+    "inactiveSelection": "#C0C0C0",
+    "inactiveSelectionText": "#000000",
+    "sidebarSelection": "#000080",
+    "sidebarSelectionText": "#FFFFFF",
+    "toolbarText": "#000000",
+    "sidebarIcon": "#808000"
+  },
+  "fonts": {
+    "list": {
+      "family": "Tahoma, Verdana, Geneva, system",
+      "size": 11
+    },
+    "ui": {
+      "family": "Tahoma, Verdana, Geneva, system",
+      "size": 11
+    },
+    "sidebar": {
+      "family": "Tahoma, Verdana, Geneva, system",
+      "size": 11
+    },
+    "statusBar": {
+      "family": "Tahoma, Verdana, Geneva, system",
+      "size": 11
+    }
+  },
+  "metrics": {
+    "rowHeight": 17,
+    "cornerRadius": 0,
+    "bevel": "raised",
+    "borderWidth": 0,
+    "statusBarHeight": 22,
+    "listIconSize": 16,
+    "sidebarRowHeight": 20,
+    "pathBarHeight": 24,
+    "selectionInset": 0,
+    "selectionVerticalInset": 0,
+    "cellHorizontalInset": 4,
+    "iconTextGap": 4,
+    "iconGridGapH": 8,
+    "iconGridGapV": 12,
+    "iconGridInset": 12,
+    "defaultDensity": "compact"
+  },
+  "chrome": {
+    "titlebar": "gradient",
+    "toolbarStyle": "win3d",
+    "scrollbar": "win3d",
+    "useNativeChrome": false
+  },
+  "window": {
+    "titlebar": "gradient",
+    "colors": [
+      "#000080",
+      "#1084D0"
+    ],
+    "horizontalGradient": true,
+    "inactiveColors": [
+      "#808080",
+      "#B5B5B5"
+    ],
+    "titleColor": "#FFFFFF",
+    "inactiveTitleColor": "#C0C0C0",
+    "titleAlignment": "leading",
+    "titleFont": {
+      "family": "Tahoma, Verdana, Geneva, system",
+      "size": 11,
+      "weight": "bold"
+    },
+    "buttons": "winCaption",
+    "buttonFace": "#C0C0C0",
+    "buttonGlyph": "#000000",
+    "buttonBevel": true,
+    "buttonSize": 0,
+    "showsMinimize": true,
+    "captionInset": 3,
+    "frameColor": "#808080",
+    "separator": false
+  },
+  "toolbar": {
+    "style": "win3d",
+    "surface": "etched",
+    "background": "#C0C0C0",
+    "text": "#000000",
+    "buttonFace": "#C0C0C0",
+    "buttonBorder": "#808080",
+    "hover": "#C0C0C0",
+    "pressed": "#C0C0C0",
+    "cornerRadius": 0
+  },
+  "header": {
+    "style": "win3d",
+    "background": "#C0C0C0",
+    "text": "#000000",
+    "separator": "#808080",
+    "sortIndicator": "#000000",
+    "height": 18,
+    "font": {
+      "family": "Tahoma, Verdana, Geneva, system",
+      "size": 11
+    }
+  },
+  "pathBar": {
+    "style": "sunken",
+    "background": "#FFFFFF",
+    "text": "#000000",
+    "separator": "#000000",
+    "highlight": "#000080"
+  },
+  "surfaces": {
+    "statusBar": "sunken",
+    "sidebar": "sunken",
+    "list": "sunken"
+  },
+  "grid": {
+    "horizontal": false,
+    "vertical": false,
+    "color": "#C0C0C0",
+    "style": "solid",
+    "width": 1
+  },
+  "iconLabels": {
+    "text": "#000000",
+    "background": "system:clear",
+    "selectionBackground": "#000080",
+    "selectionText": "#FFFFFF",
+    "shape": "rect",
+    "maxLines": 2
+  },
+  "scrollbar": {
+    "style": "win3d",
+    "track": "#C0C0C0",
+    "thumb": "#C0C0C0",
+    "thumbBorder": "#000000",
+    "arrows": true,
+    "width": 16,
+    "minimumThumb": 8
+  },
+  "bevelColors": {
+    "face": "#C0C0C0",
+    "highlight": "#FFFFFF",
+    "light": "#DFDFDF",
+    "shadow": "#808080",
+    "darkShadow": "#000000",
+    "frame": "#000000"
+  },
+  "desktopPattern": {
+    "kind": "solid",
+    "foreground": "#008080",
+    "background": "#008080",
+    "scale": 1
+  },
+  "icons": {
+    "set": "system"
+  },
+  "sounds": {}
+}

@@ -1,0 +1,177 @@
+{
+  "id": "luna",
+  "name": "Luna",
+  "base": "light",
+  "colors": {
+    "windowBg": "#ECE9D8",
+    "listBg": "#FFFFFF",
+    "rowAlt": "",
+    "selection": "#316AC5",
+    "selectionText": "#FFFFFF",
+    "text": "#000000",
+    "secondaryText": "#333333",
+    "sidebarBg": "#D6DFF7",
+    "sidebarText": "#215DC6",
+    "statusBarBg": "#ECE9D8",
+    "statusBarText": "#000000",
+    "toolbarBg": "#ECE9D8",
+    "accent": "#316AC5",
+    "border": "#ACA899",
+    "inactiveSelection": "#D4D0C8",
+    "inactiveSelectionText": "#000000",
+    "sidebarSelection": "#316AC5",
+    "sidebarSelectionText": "#FFFFFF",
+    "toolbarText": "#000000",
+    "sidebarIcon": "#215DC6"
+  },
+  "fonts": {
+    "list": {
+      "family": "Tahoma, Verdana, system",
+      "size": 11
+    },
+    "ui": {
+      "family": "Tahoma, Verdana, system",
+      "size": 11
+    },
+    "sidebar": {
+      "family": "Tahoma, Verdana, system",
+      "size": 12
+    },
+    "statusBar": {
+      "family": "Tahoma, Verdana, system",
+      "size": 11
+    }
+  },
+  "metrics": {
+    "rowHeight": 18,
+    "cornerRadius": 0,
+    "bevel": "none",
+    "borderWidth": 0,
+    "statusBarHeight": 22,
+    "listIconSize": 16,
+    "sidebarRowHeight": 22,
+    "pathBarHeight": 24,
+    "selectionInset": 0,
+    "selectionVerticalInset": 0,
+    "cellHorizontalInset": 4,
+    "iconTextGap": 4,
+    "iconGridGapH": 8,
+    "iconGridGapV": 12,
+    "iconGridInset": 12,
+    "defaultDensity": "compact"
+  },
+  "chrome": {
+    "titlebar": "gradient",
+    "toolbarStyle": "flat",
+    "scrollbar": "flat",
+    "useNativeChrome": false
+  },
+  "window": {
+    "titlebar": "gradient",
+    "colors": [
+      "#3D8AF7",
+      "#0761EE",
+      "#0055E5",
+      "#0055E5",
+      "#004FD8",
+      "#0046C9"
+    ],
+    "inactiveColors": [
+      "#A8BFF2",
+      "#8AA5E8",
+      "#7C96DF",
+      "#7088D6"
+    ],
+    "titleColor": "#FFFFFF",
+    "inactiveTitleColor": "#D8E4F8",
+    "titleShadow": "#0A1E6E",
+    "titleAlignment": "leading",
+    "titleFont": {
+      "family": "Trebuchet MS, Tahoma, Verdana, system",
+      "size": 13,
+      "weight": "bold"
+    },
+    "buttons": "winCaption",
+    "buttonFace": "#2F6BEB",
+    "closeButtonFace": "#E25B32",
+    "buttonGlyph": "#FFFFFF",
+    "buttonBevel": false,
+    "buttonCornerRadius": 3,
+    "buttonSize": 21,
+    "showsMinimize": true,
+    "captionInset": 0,
+    "frameColor": "#0831D9",
+    "separator": false
+  },
+  "toolbar": {
+    "style": "flat",
+    "surface": "flat",
+    "background": "#F1EFE2",
+    "text": "#000000",
+    "buttonFace": "#ECE9D8",
+    "buttonBorder": "#3C8A2E",
+    "hover": "#B4E5A3",
+    "pressed": "#6CC25A",
+    "cornerRadius": 3
+  },
+  "header": {
+    "style": "flat",
+    "background": "#EBEADB",
+    "text": "#000000",
+    "separator": "#C7C5B2",
+    "sortIndicator": "#ACA899",
+    "height": 20,
+    "font": {
+      "family": "Tahoma, Verdana, system",
+      "size": 11
+    }
+  },
+  "pathBar": {
+    "style": "flat",
+    "background": "#FFFFFF",
+    "text": "#000000",
+    "separator": "#7F9DB9",
+    "highlight": "#316AC5"
+  },
+  "surfaces": {
+    "statusBar": "flat",
+    "sidebar": "flat",
+    "list": "native"
+  },
+  "grid": {
+    "horizontal": false,
+    "vertical": false,
+    "color": "#EBEADB",
+    "style": "solid",
+    "width": 1
+  },
+  "iconLabels": {
+    "text": "#000000",
+    "background": "system:clear",
+    "selectionBackground": "#316AC5",
+    "selectionText": "#FFFFFF",
+    "shape": "rect",
+    "maxLines": 2
+  },
+  "scrollbar": {
+    "style": "flat",
+    "track": "#F5F4EA",
+    "thumb": "#9DB6F0",
+    "thumbBorder": "#7F9DB9",
+    "arrows": true,
+    "width": 17,
+    "minimumThumb": 16
+  },
+  "bevelColors": {
+    "face": "#ECE9D8",
+    "highlight": "#FFFFFF",
+    "light": "#F1EFE2",
+    "shadow": "#ACA899",
+    "darkShadow": "#716F64",
+    "frame": "#003C74"
+  },
+  "icons": {
+    "set": "system"
+  },
+  "sounds": {}
+}

@@ -1,0 +1,13 @@
+{
+  "name": "empty-selection",
+  "hook": "command.run",
+  "input": {
+    "commandId": "zip-selection",
+    "selection": []
+  },
+  "expect": {
+    "equals": {
+      "message": "Select something to zip first"
+    }
+  }
+}
