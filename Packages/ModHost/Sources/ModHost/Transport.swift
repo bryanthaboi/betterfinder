@@ -97,6 +97,12 @@ public final class SubprocessModHostTransport: ModHostTransport, @unchecked Send
         p.executableURL = executable
         p.arguments = arguments
         p.environment = ["PATH": "/usr/bin:/bin", "HOME": NSHomeDirectory()]
+        let environment = ProcessInfo.processInfo.environment
+        if environment["BETTERFINDER_DEMO"] == "1" {
+            for key in ["CFFIXED_USER_HOME", "TMPDIR", "BETTERFINDER_DEMO", "BETTERFINDER_DEMO_COMPUTER", "BETTERFINDER_DEMO_USER", "BETTERFINDER_DEMO_VOLUMES"] {
+                p.environment?[key] = environment[key]
+            }
+        }
         let inPipe = Pipe()
         let outPipe = Pipe()
         p.standardInput = inPipe

@@ -97,7 +97,7 @@ enum DirectoryStream {
     }
 
     static func listVolumes() -> [FileItem] {
-        let vols = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [.volumeLocalizedNameKey], options: [.skipHiddenVolumes]) ?? []
+        let vols = DemoEnvironment.volumes
         return vols.compactMap { url in
             guard var item = DirectoryLister.item(for: url) else { return nil }
             if let name = try? url.resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName { item.name = name }

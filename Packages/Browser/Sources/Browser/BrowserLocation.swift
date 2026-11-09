@@ -36,8 +36,8 @@ public enum BrowserLocation: Hashable, Sendable {
 
     public var normalized: BrowserLocation {
         switch self {
-        case .folder(let u): return .folder(URL(fileURLWithPath: u.standardizedFileURL.path, isDirectory: true))
-        case .search(let scope, let q): return .search(scope: URL(fileURLWithPath: scope.standardizedFileURL.path, isDirectory: true), query: q)
+        case .folder(let u): return .folder(URL(fileURLWithPath: DemoEnvironment.browseURL(u).standardizedFileURL.path, isDirectory: true))
+        case .search(let scope, let q): return .search(scope: URL(fileURLWithPath: DemoEnvironment.searchURL(scope).standardizedFileURL.path, isDirectory: true), query: q)
         default: return self
         }
     }
@@ -48,7 +48,7 @@ public enum BrowserLocation: Hashable, Sendable {
 
     public var displayName: String {
         switch self {
-        case .computer: return Host.current().localizedName ?? "Computer"
+        case .computer: return DemoEnvironment.computerName
         case .folder(let u):
             if u.path == "/" { return (try? u.resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName) ?? "/" }
             return FileManager.default.displayName(atPath: u.path)

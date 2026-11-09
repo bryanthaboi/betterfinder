@@ -71,6 +71,14 @@ public final class AppModRuntime {
                 let url = URL(fileURLWithPath: root, isDirectory: true)
                 c.paths = ModHostPaths(root: url, caches: url.appendingPathComponent("Caches", isDirectory: true))
             }
+            if env["BETTERFINDER_DEMO"] == "1" {
+                c.transport = ModHostTransports.inProcess()
+                c.checkTransport = ModHostTransports.inProcess()
+                c.secrets = InMemorySecretStore()
+                c.credentials = InMemorySecretStore()
+                c.globalKeybindings = false
+                return c
+            }
             if let host = Self.debugSubprocessHost(env) {
                 c.transport = host
                 c.checkTransport = host

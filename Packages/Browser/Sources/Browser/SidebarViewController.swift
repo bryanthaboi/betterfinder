@@ -8,6 +8,9 @@ enum SidebarStore {
 
     static var defaultFavorites: [String] {
         let fm = FileManager.default
+        if DemoEnvironment.isEnabled {
+            return [recentsToken, DemoEnvironment.home.path] + ["Desktop", "Documents", "Downloads", "Pictures", "Music", "Movies", "Projects"].map { DemoEnvironment.home.appendingPathComponent($0).path }
+        }
         var out = [recentsToken, fm.homeDirectoryForCurrentUser.path]
         for d in [FileManager.SearchPathDirectory.desktopDirectory, .documentDirectory, .downloadsDirectory] {
             if let u = fm.urls(for: d, in: .userDomainMask).first { out.append(u.path) }
@@ -17,7 +20,7 @@ enum SidebarStore {
     }
 
     static var favorites: [String] {
-        get { BrowserDefaults.favorites ?? defaultFavorites }
+        get { DemoEnvironment.isEnabled ? defaultFavorites : BrowserDefaults.favorites ?? defaultFavorites }
         set {
             BrowserDefaults.favorites = newValue
             NotificationCenter.default.post(name: .browserFavoritesDidChange, object: nil)
@@ -195,7 +198,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         }
         var locations: [Entry] = [Entry(title: BrowserLocation.computer.displayName, location: .computer, symbol: "desktopcomputer", kind: .computer)]
         let keys: [URLResourceKey] = [.volumeLocalizedNameKey, .volumeIsRemovableKey, .volumeIsLocalKey, .volumeIsEjectableKey, .volumeIsInternalKey, .volumeIsRootFileSystemKey]
-        let vols = fm.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
+        let vols = DemoEnvironment.volumes
         for v in vols {
             let values = try? v.resourceValues(forKeys: Set(keys))
             let isNetwork = values?.volumeIsLocal == false

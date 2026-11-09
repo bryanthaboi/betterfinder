@@ -112,7 +112,13 @@ public enum ToolbarButtonRenderer {
 }
 
 open class ThemedButtonCell: NSButtonCell {
-    public var themeOverride: Theme?
+    public final var themeOverride: Theme?
+
+    override open func copy(with zone: NSZone? = nil) -> Any {
+        let copy = super.copy(with: zone) as! ThemedButtonCell
+        withUnsafeMutablePointer(to: &copy.themeOverride) { $0.initialize(to: themeOverride) }
+        return copy
+    }
     public var isHovering = false
 
     @MainActor
@@ -203,7 +209,13 @@ open class ThemedToolbarButton: NSButton {
 }
 
 open class ThemedSegmentedCell: NSSegmentedCell {
-    public var themeOverride: Theme?
+    public final var themeOverride: Theme?
+
+    override open func copy(with zone: NSZone? = nil) -> Any {
+        let copy = super.copy(with: zone) as! ThemedSegmentedCell
+        withUnsafeMutablePointer(to: &copy.themeOverride) { $0.initialize(to: themeOverride) }
+        return copy
+    }
 
     @MainActor
     public var theme: Theme { themeOverride ?? ThemeManager.shared.current }

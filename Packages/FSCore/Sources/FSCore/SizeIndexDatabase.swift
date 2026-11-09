@@ -14,7 +14,7 @@ public struct IndexedSize: Sendable, Equatable {
 
 public enum SizeIndexLocation {
     public static var database: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/betterfinder/SizeIndex.sqlite")
+        DemoEnvironment.home.appendingPathComponent("Library/Application Support/betterfinder/SizeIndex.sqlite")
     }
     public static func canonical(_ url: URL) -> URL {
         let path: String

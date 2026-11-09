@@ -27,6 +27,12 @@ public struct ThemeEditorView: View {
         _tab = State(initialValue: initialTab)
     }
 
+    public init(model: ThemeEditorModel) {
+        _manager = ObservedObject(wrappedValue: model.manager)
+        _model = StateObject(wrappedValue: model)
+        _tab = State(initialValue: .colors)
+    }
+
     public var body: some View {
         HSplitView {
             themeList
@@ -39,7 +45,7 @@ public struct ThemeEditorView: View {
             .frame(minWidth: 520)
         }
         .frame(minWidth: 760, minHeight: 620)
-        .onReceive(manager.$current) { _ in model.syncFromManager() }
+        .onChange(of: manager.current) { _, _ in model.syncFromManager() }
         .onDisappear { model.flush() }
         .alert("Theme Error", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
             Button("OK", role: .cancel) { model.errorMessage = nil }

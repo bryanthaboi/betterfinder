@@ -191,6 +191,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         if ff != lastFoldersFirst {
             lastFoldersFirst = ff
             remote?.applySharedSort()
+            content.prepareForResort()
             model.updateSort(BrowserDefaults.sort)
         }
     }
@@ -200,6 +201,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         let spec = BrowserDefaults.sort
         guard spec != model.sorter.spec else { return }
         pendingSelection = selectedURLs
+        content.prepareForResort()
         model.updateSort(spec)
         content.refreshDisplay()
     }

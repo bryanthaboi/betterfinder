@@ -21,6 +21,7 @@ class BrowserContentController: NSViewController, ThemedSurface {
     func visibleFolderURLs() -> [URL] { [] }
     func applyTheme(_ theme: Theme) {}
     func refreshDisplay() {}
+    func prepareForResort() {}
     func invalidateColumnValues(_ pathKeys: [String]) {}
     func childDirectoryEvents(_ dirs: Set<String>) {}
     var keyView: NSView? { nil }

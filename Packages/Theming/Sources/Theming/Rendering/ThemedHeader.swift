@@ -73,7 +73,13 @@ public enum HeaderRenderer {
 }
 
 open class ThemedHeaderCell: NSTableHeaderCell {
-    public var themeOverride: Theme?
+    public final var themeOverride: Theme?
+
+    override open func copy(with zone: NSZone? = nil) -> Any {
+        let copy = super.copy(with: zone) as! ThemedHeaderCell
+        withUnsafeMutablePointer(to: &copy.themeOverride) { $0.initialize(to: themeOverride) }
+        return copy
+    }
     public var sortAscending: Bool?
     public var isPressedState = false
 
@@ -128,7 +134,7 @@ open class ThemedHeaderView: NSTableHeaderView {
                 col.headerCell.draw(withFrame: rect, in: self)
             }
         }
-        if let last = table.tableColumns.indices.last {
+        if let last = table.tableColumns.lastIndex(where: { !$0.isHidden }) {
             let end = headerRect(ofColumn: last).maxX
             if end < bounds.maxX, t.header.style == .win3d {
                 let filler = NSRect(x: end, y: bounds.minY, width: bounds.maxX - end, height: bounds.height)

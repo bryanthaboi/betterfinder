@@ -12,9 +12,9 @@ import ServiceManagement
 
 public enum SizeIndexService {
     public static let machServiceName = "com.bryanthaboi.betterfinder.indexer"
-    public static var status: SMAppService.Status { SMAppService.agent(plistName: machServiceName + ".plist").status }
-    public static func register() throws { try SMAppService.agent(plistName: machServiceName + ".plist").register() }
-    public static func unregister() async throws { try await SMAppService.agent(plistName: machServiceName + ".plist").unregister() }
+    public static var status: SMAppService.Status { if DemoEnvironment.isEnabled { return .notRegistered }; return SMAppService.agent(plistName: machServiceName + ".plist").status }
+    public static func register() throws { guard !DemoEnvironment.isEnabled else { return }; try SMAppService.agent(plistName: machServiceName + ".plist").register() }
+    public static func unregister() async throws { guard !DemoEnvironment.isEnabled else { return }; try await SMAppService.agent(plistName: machServiceName + ".plist").unregister() }
 }
 
 private final class IndexReply<T>: @unchecked Sendable {
@@ -33,7 +33,8 @@ private final class IndexReply<T>: @unchecked Sendable {
 public final class SizeIndexClient: @unchecked Sendable {
     public init() {}
     private func call<T>(fallback: T, _ body: @escaping (SizeIndexProtocol, @escaping (T) -> Void) -> Void) async -> T {
-        await withCheckedContinuation { continuation in
+        guard !DemoEnvironment.isEnabled else { return fallback }
+        return await withCheckedContinuation { continuation in
             let reply = IndexReply(continuation)
             let connection = NSXPCConnection(machServiceName: SizeIndexService.machServiceName)
             connection.remoteObjectInterface = NSXPCInterface(with: SizeIndexProtocol.self)

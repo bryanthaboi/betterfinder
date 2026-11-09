@@ -359,7 +359,13 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
             restoreExpansion()
             suppressExpansionTracking = false
             restoreSelection(selected)
-            restoreScroll(anchor)
+            if resortPending {
+                resortPending = false
+                let first = outline.selectedRowIndexes.first
+                if let first { outline.scrollRowToVisible(first) } else { scrollToTop() }
+            } else {
+                restoreScroll(anchor)
+            }
             scheduleColumnRequest()
         case .diff(let d):
             let newRoots = splice(d, items: model.items)
@@ -447,13 +453,26 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         return (n.key, visible.minY - outline.rect(ofRow: range.location).minY)
     }
 
+    private var resortPending = false
+
+    override func prepareForResort() {
+        resortPending = true
+    }
+
+    private func scrollToTop() {
+        let clip = scroll.contentView
+        clip.scroll(to: clip.constrainBoundsRect(NSRect(x: clip.bounds.minX, y: -.greatestFiniteMagnitude, width: clip.bounds.width, height: clip.bounds.height)).origin)
+        scroll.reflectScrolledClipView(clip)
+    }
+
     private func restoreScroll(_ anchor: (String, CGFloat)?) {
         guard let (key, offset) = anchor, let n = nodeByKey[key] else { return }
         let row = outline.row(forItem: n)
         guard row >= 0 else { return }
+        let clip = scroll.contentView
         let y = outline.rect(ofRow: row).minY + offset
-        scroll.contentView.scroll(to: NSPoint(x: scroll.contentView.bounds.minX, y: max(0, y)))
-        scroll.reflectScrolledClipView(scroll.contentView)
+        clip.scroll(to: clip.constrainBoundsRect(NSRect(x: clip.bounds.minX, y: y, width: clip.bounds.width, height: clip.bounds.height)).origin)
+        scroll.reflectScrolledClipView(clip)
     }
 
     private func restoreSelection(_ keys: Set<String>) {

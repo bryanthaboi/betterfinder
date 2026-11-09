@@ -144,7 +144,8 @@ public struct WorkspaceVolumeProvider: VolumeProviding {
 
     public func mountedVolumes() -> [VolumeDescriptor] {
         let keys: [URLResourceKey] = [.volumeIsRemovableKey, .volumeIsEjectableKey, .volumeIsLocalKey, .volumeIsInternalKey]
-        let urls = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
+        let demo = ProcessInfo.processInfo.environment["BETTERFINDER_DEMO"] == "1"
+        let urls = demo ? (ProcessInfo.processInfo.environment["BETTERFINDER_DEMO_VOLUMES"] ?? "").split(separator: ":").filter { $0.hasPrefix("/") && $0 != "/" }.map { URL(fileURLWithPath: String($0)) } : FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
         return urls.compactMap { url in
             guard url.path != "/" else { return nil }
             let v = try? url.resourceValues(forKeys: Set(keys))

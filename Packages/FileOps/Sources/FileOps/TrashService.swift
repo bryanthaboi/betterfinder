@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import FSCore
 
 public protocol TrashProvider: Sendable {
     func trashItem(at url: URL) throws -> URL?
@@ -18,8 +19,7 @@ public struct SystemTrashProvider: TrashProvider {
     public func trashContents() -> [URL] {
         var dirs = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask)
         let uid = getuid()
-        let keys: [URLResourceKey] = [.volumeIsLocalKey]
-        let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: keys, options: [.skipHiddenVolumes]) ?? []
+        let volumes = DemoEnvironment.volumes
         for v in volumes where v.path != "/" {
             let t = v.appendingPathComponent(".Trashes/\(uid)")
             if FS.isDirectory(t) { dirs.append(t) }

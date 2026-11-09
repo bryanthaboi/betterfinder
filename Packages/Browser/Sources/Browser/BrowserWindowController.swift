@@ -348,6 +348,10 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
             item.view = seg
             item.label = "Back/Forward"
             item.isNavigational = true
+            item.menuFormRepresentation = submenuItem("Back/Forward", [
+                ("Back", #selector(goBack(_:))),
+                ("Forward", #selector(goForward(_:))),
+            ])
             updateNavControl()
             return item
         case ToolbarID.up:
@@ -377,6 +381,11 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
             let item = NSToolbarItem(itemIdentifier: id)
             item.view = seg
             item.label = "View"
+            item.menuFormRepresentation = submenuItem("View", [
+                ("as List", #selector(asList(_:))),
+                ("as Columns", #selector(asColumns(_:))),
+                ("as Icons", #selector(asIcons(_:))),
+            ])
             return item
         case ToolbarID.action:
             let item = NSMenuToolbarItem(itemIdentifier: id)
@@ -523,12 +532,26 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         updateNavControl()
     }
 
-    @objc private func navSegment(_ sender: NSSegmentedControl) {
-        sender.selectedSegment == 0 ? goBack(sender) : goForward(sender)
+    @objc private func navSegment(_ sender: Any?) {
+        guard let seg = sender as? NSSegmentedControl else { return }
+        seg.selectedSegment == 0 ? goBack(seg) : goForward(seg)
     }
 
-    @objc private func viewModeSegment(_ sender: NSSegmentedControl) {
-        if let m = BrowserViewMode(rawValue: sender.selectedSegment) { setViewMode(m) }
+    @objc private func viewModeSegment(_ sender: Any?) {
+        guard let seg = sender as? NSSegmentedControl else { return }
+        if let m = BrowserViewMode(rawValue: seg.selectedSegment) { setViewMode(m) }
+    }
+
+    private func submenuItem(_ title: String, _ entries: [(String, Selector)]) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: title)
+        for (t, action) in entries {
+            let m = NSMenuItem(title: t, action: action, keyEquivalent: "")
+            m.target = self
+            menu.addItem(m)
+        }
+        item.submenu = menu
+        return item
     }
 
     func setViewMode(_ mode: BrowserViewMode) {

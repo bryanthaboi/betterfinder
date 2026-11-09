@@ -17,6 +17,8 @@ public final class ThemedWindowChrome: NSObject {
     private let backgroundView = TitlebarBackgroundView()
     private var captionButtons: [WindowCaptionButton] = []
     private var captionConstraints: [NSLayoutConstraint] = []
+    private var toolbarPadding: NSTitlebarAccessoryViewController?
+    private var toolbarFrameTokens: [NSObjectProtocol] = []
     private var captionStyle: Theme.WindowButtonStyle?
     private var original: OriginalState?
     private var isFullScreen = false
@@ -168,8 +170,80 @@ public final class ThemedWindowChrome: NSObject {
         )
     }
 
+    private var toolbarView: NSView? {
+        titlebarView?.subviews.first { String(describing: type(of: $0)).contains("NSToolbarView") }
+    }
+
+    private func installToolbarPadding(in window: NSWindow) {
+        guard window.toolbar != nil else { return }
+        if toolbarPadding == nil {
+            let vc = NSTitlebarAccessoryViewController()
+            vc.view = NSView(frame: NSRect(x: 0, y: 0, width: 1, height: 1))
+            vc.layoutAttribute = .bottom
+            window.addTitlebarAccessoryViewController(vc)
+            toolbarPadding = vc
+        }
+        observeToolbarFrames()
+        syncToolbarOffset()
+        for delay in [0.0, 0.4, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.syncToolbarOffset()
+            }
+        }
+    }
+
+    private func observeToolbarFrames() {
+        toolbarFrameTokens.forEach { NotificationCenter.default.removeObserver($0) }
+        toolbarFrameTokens.removeAll()
+        for view in [toolbarView, toolbarPadding?.view].compactMap({ $0 }) {
+            view.postsFrameChangedNotifications = true
+            toolbarFrameTokens.append(NotificationCenter.default.addObserver(forName: NSView.frameDidChangeNotification, object: view, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.syncToolbarOffset() }
+            })
+        }
+    }
+
+    private func removeToolbarPadding() {
+        if let vc = toolbarPadding, let window, let i = window.titlebarAccessoryViewControllers.firstIndex(of: vc) {
+            window.removeTitlebarAccessoryViewController(at: i)
+        }
+        toolbarPadding = nil
+        toolbarFrameTokens.forEach { NotificationCenter.default.removeObserver($0) }
+        toolbarFrameTokens.removeAll()
+        if let bar = toolbarView, bar.bounds.origin != .zero { bar.setBoundsOrigin(.zero) }
+    }
+
+    func syncToolbarOffset() {
+        guard let vc = toolbarPadding, let bar = toolbarView else { return }
+        var platters: [NSRect] = []
+        var content: [NSRect] = []
+        func visit(_ v: NSView, depth: Int) {
+            for c in v.subviews where !c.isHidden {
+                let f = c.convert(c.bounds, to: bar)
+                if String(describing: type(of: c)).contains("Platter") {
+                    platters.append(f)
+                } else if f.height > 0, f.height < bar.bounds.height - 0.5 {
+                    content.append(f)
+                } else if depth < 3 {
+                    visit(c, depth: depth + 1)
+                }
+            }
+        }
+        visit(bar, depth: 0)
+        let frames = platters.isEmpty ? content : platters
+        guard let minY = frames.map(\.minY).min(), let maxY = frames.map(\.maxY).max(), minY < maxY else { return }
+        let area = bar.frame.height + vc.view.frame.height
+        let gap = ((area - (maxY - minY)) / 2).rounded()
+        let leading = bar.isFlipped ? minY - bar.bounds.minY : bar.bounds.maxY - maxY
+        let delta = gap - leading
+        guard abs(delta) > 0.5 else { return }
+        bar.setBoundsOrigin(NSPoint(x: 0, y: bar.bounds.minY + (bar.isFlipped ? -delta : delta)))
+        bar.needsDisplay = true
+    }
+
     private func applyNative() {
         guard let window else { return }
+        removeToolbarPadding()
         removeCaptionButtons()
         backgroundView.removeFromSuperview()
         for type in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
@@ -198,6 +272,7 @@ public final class ThemedWindowChrome: NSObject {
         guard let tv = titlebarView else { return }
         installBackground(in: tv)
         configureButtons(theme, in: tv, window: window)
+        installToolbarPadding(in: window)
         isDrawingCustomChrome = true
         tv.needsLayout = true
         refresh()
@@ -332,6 +407,16 @@ final class TitlebarBackgroundView: NSView {
     override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         needsDisplay = true
+    }
+
+    override func layout() {
+        super.layout()
+        chrome?.syncToolbarOffset()
+    }
+
+    override func viewWillDraw() {
+        super.viewWillDraw()
+        chrome?.syncToolbarOffset()
     }
 
     override func draw(_ dirtyRect: NSRect) {

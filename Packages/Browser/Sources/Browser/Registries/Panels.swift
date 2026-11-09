@@ -155,7 +155,7 @@ final class PanelContentViewController: NSViewController {
         sep.boxType = .separator
         for v in [header, sep, body] as [NSView] { v.translatesAutoresizingMaskIntoConstraints = false; root.addSubview(v) }
         NSLayoutConstraint.activate([
-            header.topAnchor.constraint(equalTo: root.topAnchor),
+            header.topAnchor.constraint(equalTo: root.safeAreaLayoutGuide.topAnchor),
             header.leadingAnchor.constraint(equalTo: root.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: root.trailingAnchor),
             header.heightAnchor.constraint(equalToConstant: Spacing.panelHeaderHeight),

@@ -15,7 +15,7 @@ public enum SizeFormatter {
 public enum VolumeInfo {
     public static func availableCapacity(for url: URL) -> Int64? {
         let v = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeAvailableCapacityKey])
-        if let important = v?.volumeAvailableCapacityForImportantUsage { return important }
+        if !DemoEnvironment.isEnabled, let important = v?.volumeAvailableCapacityForImportantUsage { return important }
         return v?.volumeAvailableCapacity.map(Int64.init)
     }
 

@@ -11,7 +11,7 @@ final class SizeIndexController: SizeIndexControlling {
     private var registrationError: String?
 
     static var shouldRegister: Bool {
-        Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["BF_REGISTER_INDEXER"] == "1"
+        !DemoEnvironment.isEnabled && (Bundle.main.bundlePath.hasPrefix("/Applications/") || ProcessInfo.processInfo.environment["BF_REGISTER_INDEXER"] == "1")
     }
 
     static let notInstalledReason = "This copy of betterfinder doesn’t run the background size indexer, so folder sizes are calculated inside the app. Pausing and rebuilding only apply to the indexer."

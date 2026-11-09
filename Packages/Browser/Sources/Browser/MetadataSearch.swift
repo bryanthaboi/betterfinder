@@ -41,7 +41,11 @@ final class MetadataSearch: NSObject {
     private var finished = false
 
     init(kind: Kind) {
-        self.kind = kind
+        if DemoEnvironment.isEnabled, case .name(let text, let scope) = kind {
+            self.kind = .name(text, scope: DemoEnvironment.searchURL(scope))
+        } else {
+            self.kind = kind
+        }
     }
 
     func start() {
@@ -65,6 +69,7 @@ final class MetadataSearch: NSObject {
             q.predicate = NSPredicate(format: "kMDItemUserTags == %@", tag)
             q.searchScopes = [NSMetadataQueryLocalComputerScope]
         }
+        if DemoEnvironment.isEnabled { q.searchScopes = [DemoEnvironment.home] }
         let nc = NotificationCenter.default
         nc.addObserver(self, selector: #selector(gathered(_:)), name: .NSMetadataQueryGatheringProgress, object: q)
         nc.addObserver(self, selector: #selector(gathered(_:)), name: .NSMetadataQueryDidUpdate, object: q)
@@ -139,6 +144,7 @@ final class MetadataSearch: NSObject {
         if let (real, display) = scopeRemap {
             paths = raw.map { $0.hasPrefix(real + "/") ? display + $0.dropFirst(real.count) : $0 }
         }
+        if DemoEnvironment.isEnabled { paths = paths.filter { DemoEnvironment.contains(URL(fileURLWithPath: $0), in: DemoEnvironment.home) } }
         delivered += paths.count
         onPaths?(paths)
     }
