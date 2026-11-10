@@ -18,4 +18,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 select retro purple in appearance; expect purple selection and purple file/folder icons. switch back to modern; expect system appearance. disable the mod; its assets should disappear.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.

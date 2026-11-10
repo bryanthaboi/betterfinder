@@ -19,4 +19,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 choose a scratch downloads folder with two differently dated files. open downloads → recent. expect newest first. this bounded example shows one page, up to 128 items.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.

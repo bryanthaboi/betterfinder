@@ -19,4 +19,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 select a 32 × 32 png and a text file. expect a dimensions cell for the image and an empty cell for the text file.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.

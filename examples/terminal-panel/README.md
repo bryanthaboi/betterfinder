@@ -19,4 +19,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 set command to `printf hello`, click run, expect hello + exit 0. try `exit 3`, expect exit 3. no shell command runs on activation.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.

@@ -21,4 +21,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 select two scratch files and click zip. choose a writable scratch folder; expect Archive.zip and an operation ticket. cancel the picker; expect no archive. empty selection asks u to select something.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.

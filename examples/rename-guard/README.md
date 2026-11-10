@@ -18,4 +18,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 rename a scratch file to `report `; expect denial. rename to `report` or `two words`; expect allow. also check a batch where only one destination ends in a space.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.

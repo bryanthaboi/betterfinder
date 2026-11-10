@@ -1,6 +1,6 @@
 # example mods
 
-eight small packages. nothing auto-enables. each README lists grants and a scratch-window check. start with [the guide](../docs/modding/getting-started.md).
+eight small packages. nothing auto-enables. each README lists grants and a scratch-window check. start with [the guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started).
 
 - [terminal-panel](terminal-panel/README.md)
 - [git-status-column](git-status-column/README.md)
@@ -11,4 +11,4 @@ eight small packages. nothing auto-enables. each README lists grants and a scrat
 - [rename-guard](rename-guard/README.md)
 - [retro-purple](retro-purple/README.md)
 
-run `betterfinder-mod validate examples/<name>` on any of them; each reports `dryRun=pass`. for mods that shipped for real, see the [real world examples](../docs/modding/index.md#real-world-examples).
+run `betterfinder-mod validate examples/<name>` on any of them; each reports `dryRun=pass`. for mods that shipped for real, see the [real world examples](https://github.com/bryanthaboi/betterfinder/wiki/Modding#real-world-examples).

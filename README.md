@@ -108,7 +108,7 @@ xcodebuild -project BetterFinder.xcodeproj -scheme BetterFinder -derivedDataPath
 open build/DerivedData/Build/Products/Debug/betterfinder.app
 ```
 
-tests per package: `swift test --package-path Packages/Browser` (etc). more in [docs/building.md](docs/building.md)
+tests per package: `swift test --package-path Packages/Browser` (etc). more in [building + ci](https://github.com/bryanthaboi/betterfinder/wiki/Building)
 
 </details>
 
@@ -121,8 +121,8 @@ opt-in in settings. enter opens, f2 renames, backspace goes up, f5 refreshes, fo
 
 ## docs
 
-- [modding guide](docs/modding/index.md) · [spacing](docs/design/spacing.md)
-- [building + ci](docs/building.md)
+- [modding guide](https://github.com/bryanthaboi/betterfinder/wiki/Modding) · [spacing](docs/design/spacing.md)
+- [building + ci](https://github.com/bryanthaboi/betterfinder/wiki/Building)
 
 ## mods
 
@@ -148,7 +148,7 @@ betterfinder-mod scaffold me.cool-thing --language ts --template panel
 betterfinder-mod validate me.cool-thing
 ```
 
-then mods → load unpacked mod… and it hot reloads on save. [guide →](docs/modding/index.md)
+then mods → load unpacked mod… and it hot reloads on save. [guide →](https://github.com/bryanthaboi/betterfinder/wiki/Modding)
 
 </details>
 

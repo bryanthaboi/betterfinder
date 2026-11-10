@@ -22,4 +22,4 @@ validate runs a dry run of every hook and any `tests/*.bftest.json`, then prints
 
 choose a test repo with one modified file and one untracked file. expect modified/untracked on those rows and blank cells for clean files. paths must be relative to the chosen repo root; missing path metadata gives blank cells.
 
-see [authoring guide](../../docs/modding/getting-started.md). nothing auto-enables. license: MIT.
+see [authoring guide](https://github.com/bryanthaboi/betterfinder/wiki/Getting-Started). nothing auto-enables. license: MIT.
