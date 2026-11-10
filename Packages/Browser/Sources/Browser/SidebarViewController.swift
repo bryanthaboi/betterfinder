@@ -75,6 +75,7 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         var tagColor: NSColor?
         var action: SidebarEntryAction?
         var toolTip: String?
+        var redacted: String? = nil
     }
 
     private let outline = SidebarOutlineView()
@@ -140,10 +141,16 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
     }
 
     private var lastKnownTags: [String] = []
+    private var lastHomeDisplay = HomeLabel.display
 
     @objc private func defaultsChanged() {
         let tags = BrowserDefaults.knownTags
-        if tags != lastKnownTags { lastKnownTags = tags; rebuild() }
+        let home = HomeLabel.display
+        if tags != lastKnownTags || home != lastHomeDisplay {
+            lastKnownTags = tags
+            lastHomeDisplay = home
+            rebuild()
+        }
     }
 
     func applyTheme(_ theme: Theme) {
@@ -185,7 +192,10 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         case dir(.picturesDirectory): symbol = "photo"
         default: symbol = "folder"
         }
-        return Entry(title: fm.displayName(atPath: token), location: .folder(url), symbol: symbol, kind: .favorite(token))
+        if HomeLabel.isRedacted(url) {
+            return Entry(title: HomeNameDisplay.redactedAccessibilityName, location: .folder(url), symbol: symbol, kind: .favorite(token), redacted: fm.displayName(atPath: token))
+        }
+        return Entry(title: HomeLabel.name(fm.displayName(atPath: token), for: url), location: .folder(url), symbol: symbol, kind: .favorite(token))
     }
 
     private func rebuild() {
@@ -370,8 +380,12 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         }
         guard let b = item as? EntryBox else { return nil }
         let cell = SidebarCellView()
-        cell.textField?.stringValue = b.entry.title
         cell.textField?.font = theme.sidebarFont
+        if let hidden = b.entry.redacted {
+            cell.textField?.attributedStringValue = RedactedText.attributed(hidden, font: theme.sidebarFont, color: Theme.color(theme.colors.sidebarText))
+        } else {
+            cell.textField?.stringValue = b.entry.title
+        }
         cell.iconTextGap = theme.layout.isAuthenticCompact ? Spacing.xxs : Spacing.iconText
         cell.normalTextColor = Theme.color(theme.colors.sidebarText)
         cell.selectedTextColor = Theme.color(theme.colors.sidebarSelectionText)

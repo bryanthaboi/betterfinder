@@ -32,7 +32,13 @@ declare module "betterfinder" {
   /** Queued operation state. */
   export type OperationState = "queued" | "running" | "done" | "failed" | "cancelled";
   /** Native control a UINode maps to. */
-  export type UINodeType = "vstack" | "hstack" | "text" | "markdown" | "button" | "list" | "progress" | "divider" | "textField" | "select";
+  export type UINodeType = "vstack" | "hstack" | "text" | "markdown" | "button" | "list" | "progress" | "divider" | "textField" | "select" | "icon" | "spacer" | "card";
+  /** Theme-aware colour role. */
+  export type UIColor = "primary" | "secondary" | "accent" | "success" | "warning" | "danger";
+  /** Font weight. */
+  export type UIWeight = "regular" | "medium" | "semibold" | "bold";
+  /** Horizontal alignment. */
+  export type UIAlign = "leading" | "center" | "trailing";
   /** Look of a text node. */
   export type UITextStyle = "body" | "title" | "secondary" | "monospaced";
   /** Git working tree state of a path. */
@@ -112,8 +118,22 @@ declare module "betterfinder" {
     command?: string;
     /** Look of a text node; body when omitted. */
     style?: UITextStyle;
-    /** SF Symbol name drawn on a button. */
+    /** SF Symbol name drawn on a button, or shown by an icon node. */
     icon?: string;
+    /** Colour of a text or icon node; for a tinted card, the tint. */
+    color?: UIColor;
+    /** Point size of a text or icon node, 8 to 96. */
+    size?: number;
+    /** Font weight of a text or icon node. */
+    weight?: UIWeight;
+    /** Alignment of a text node, or of the children of a vstack or card. */
+    align?: UIAlign;
+    /** Gap between the children of a stack or card, 0 to 64. */
+    spacing?: number;
+    /** Inset around the children of a stack or card, 0 to 64. */
+    padding?: number;
+    /** Fill a card with its colour instead of the neutral card background. */
+    tinted?: boolean;
     /** Item id a select shows as chosen; the first item when omitted. */
     selected?: string;
     /** Placeholder of a textField; text is its initial value. */
@@ -394,6 +414,7 @@ declare module "betterfinder" {
     function setPanel(panelId: string, node: UINode): Promise<void>;
     function setStatusText(itemId: string, text: string): Promise<void>;
     function setToolbarItemState(itemId: string, enabled: boolean, title?: string): Promise<void>;
+    function showPanel(panelId: string): Promise<void>;
   }
   export type ActivateHandler = (context: HookContext, input: ActivateInput) => Promise<void>;
   export type ColumnValuesHandler = (context: HookContext, input: ColumnValuesInput) => Promise<ColumnValue[]>;

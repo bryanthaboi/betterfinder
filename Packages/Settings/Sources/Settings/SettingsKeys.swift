@@ -1,6 +1,12 @@
+import FSCore
 import Foundation
 
 public enum SettingsKey {
+    public static let openFoldersInTabs = "openFoldersInTabs"
+    public static let terminalAppPath = "terminalAppPath"
+    public static let terminalBundleID = "terminalBundleID"
+    public static let homeFolderNameStyle = HomeNameDisplay.styleKey
+    public static let homeFolderNameCustom = HomeNameDisplay.customKey
     public static let newWindowLocation = "newWindowLocation"
     public static let newWindowCustomPath = "newWindowCustomPath"
     public static let openAtLogin = "openAtLogin"
@@ -51,6 +57,49 @@ public enum NewWindowLocation: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+public struct TerminalChoice: Identifiable, Hashable, Sendable {
+    public var name: String
+    public var bundleID: String
+    public var path: String
+
+    public var id: String { path }
+
+    public static let systemBundleID = "com.apple.Terminal"
+    public static let systemPath = "/System/Applications/Utilities/Terminal.app"
+
+    public static let known: [(name: String, bundleID: String)] = [
+        ("iTerm", "com.googlecode.iterm2"),
+        ("Ghostty", "com.mitchellh.ghostty"),
+        ("Warp", "dev.warp.Warp-Stable"),
+        ("kitty", "net.kovidgoyal.kitty"),
+        ("Alacritty", "org.alacritty"),
+        ("WezTerm", "com.github.wez.wezterm"),
+        ("Hyper", "co.zeit.hyper"),
+    ]
+
+    public static func installed(lookup: (String) -> URL?) -> [TerminalChoice] {
+        known.compactMap { entry in
+            lookup(entry.bundleID).map { TerminalChoice(name: entry.name, bundleID: entry.bundleID, path: $0.path) }
+        }
+    }
+
+    public static func displayName(path: String, fileManager: FileManager = .default) -> String {
+        guard !path.isEmpty, fileManager.fileExists(atPath: path) else { return "Terminal" }
+        let name = fileManager.displayName(atPath: path)
+        return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
+    }
+
+    public static func store(path: String, bundleID: String?, in defaults: UserDefaults = .standard) {
+        if path.isEmpty || path == systemPath || bundleID == systemBundleID {
+            defaults.set("", forKey: SettingsKey.terminalAppPath)
+            defaults.removeObject(forKey: SettingsKey.terminalBundleID)
+        } else {
+            defaults.set(path, forKey: SettingsKey.terminalAppPath)
+            if let bundleID, !bundleID.isEmpty { defaults.set(bundleID, forKey: SettingsKey.terminalBundleID) } else { defaults.removeObject(forKey: SettingsKey.terminalBundleID) }
+        }
+    }
+}
+
 public enum SettingsDefaults {
     public static let registered: [String: Any] = [
         SettingsKey.newWindowLocation: NewWindowLocation.home.rawValue,
@@ -64,6 +113,10 @@ public enum SettingsDefaults {
         SettingsKey.verifyCopies: false,
         SettingsKey.trashViaFinder: false,
         SettingsKey.hasCompletedOnboarding: false,
+        SettingsKey.openFoldersInTabs: false,
+        SettingsKey.terminalAppPath: "",
+        SettingsKey.homeFolderNameStyle: HomeNameStyle.real.rawValue,
+        SettingsKey.homeFolderNameCustom: "",
     ]
 
     public static func register(in defaults: UserDefaults = .standard) {

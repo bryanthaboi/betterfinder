@@ -46,6 +46,52 @@ final class RegressionUISinkTests: XCTestCase {
         XCTAssertNotNil(v.validate(.object(["handle": .string("h"), "number": .double(.nan)]), .ref("ColumnValue")))
     }
 
+    func testDeveloperInstallOverActiveModCanCarryNewApprovals() async throws {
+        let env = try await TestEnv()
+        defer { Task { await env.cleanup() } }
+        func manifest(_ version: String, surfaces: [String], statusBar: Bool) -> [String: Any] {
+            var contributes: [String: Any] = ["panels": [["id": "side", "title": "Side", "edge": "right", "presentation": "slideOut"]]]
+            if statusBar { contributes["statusBar"] = [["id": "s", "title": "S"]] }
+            return [
+                "version": version, "permissions": [["kind": "ui", "surfaces": surfaces]], "contributes": contributes,
+                "hooks": [["name": "activate", "handler": "activate", "version": 1]],
+            ]
+        }
+        let v1 = try env.mod("bob.grow", manifest: manifest("1.0.0", surfaces: ["panel"], statusBar: false),
+                             files: ["scripts/main.ts": "import { ui } from \"betterfinder\";\nexport async function activate(context: unknown, input: unknown) { await ui.setPanel(\"side\", { type: \"text\", text: \"one\" }); }"])
+        try await env.install(v1)
+        try await env.runtime.enable(id: "bob.grow")
+        let v2 = try env.mod("bob.grow", manifest: manifest("1.1.0", surfaces: ["panel", "statusBar"], statusBar: true),
+                             files: ["scripts/main.ts": "import { ui } from \"betterfinder\";\nexport async function activate(context: unknown, input: unknown) { await ui.setPanel(\"side\", { type: \"text\", text: \"two\" }); await ui.setStatusText(\"s\", \"hi\"); }"])
+        do {
+            _ = try await env.runtime.install(from: v2, developer: true)
+            XCTFail("expected the swap to fail without the new approval")
+        } catch {}
+        XCTAssertEqual(env.runtime.status(id: "bob.grow")?.version, "1.0.0")
+        let manifestV2 = try ModManifest.decode(Data(contentsOf: v2.appendingPathComponent("manifest.json"))).get()
+        let ids = Set(manifestV2.permissions.map { ModPermissionID.make($0) })
+        let report = try await env.runtime.install(from: v2, developer: true, approvedPermissionIDs: ids)
+        XCTAssertTrue(report.installed)
+        XCTAssertEqual(env.runtime.status(id: "bob.grow")?.version, "1.1.0")
+    }
+
+    func testShowPanelNeedsAGestureAndADeclaredPanel() async throws {
+        let env = try await TestEnv()
+        defer { Task { await env.cleanup() } }
+        var manifest = commandManifest("open", handler: "run", permissions: [["kind": "ui", "surfaces": ["panel"]]], extraHooks: [["name": "activate", "handler": "activate", "version": 1]],
+                                       contributes: ["panels": [["id": "side", "title": "Side", "edge": "right", "presentation": "slideOut"]]])
+        manifest["version"] = "1.0.0"
+        let script = "import { ui } from \"betterfinder\";\nexport async function activate(context: unknown, input: unknown) { try { await ui.showPanel(\"side\"); } catch (error) { } }\nexport async function run(context: unknown, input: unknown) { await ui.showPanel(\"side\"); return {}; }"
+        let dir = try env.mod("bob.show", manifest: manifest, files: ["scripts/main.ts": script])
+        try await env.install(dir)
+        try await env.runtime.enable(id: "bob.show")
+        let before = await MainActor.run { env.sink.updates }
+        XCTAssertFalse(before.contains(.showPanel(panel: ModContributionID(modId: "bob.show", localId: "side"))))
+        _ = try await env.runtime.runCommand(qualifiedID: "bob.show/open", selection: [])
+        let after = await MainActor.run { env.sink.updates }
+        XCTAssertTrue(after.contains(.showPanel(panel: ModContributionID(modId: "bob.show", localId: "side"))))
+    }
+
     func testStatusTextSetDuringActivateArrivesAfterRegistration() async throws {
         let env = try await TestEnv()
         defer { Task { await env.cleanup() } }

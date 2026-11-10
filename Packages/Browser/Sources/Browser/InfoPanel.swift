@@ -25,6 +25,8 @@ final class InfoModel: ObservableObject {
     @Published var message: String?
     @Published var dimensions: String?
     @Published var icon: NSImage?
+    @Published var nameLocked = false
+    @Published var redactedName: String?
     private var sizeTask: Task<Void, Never>?
     static var announce: (String) -> Void = { message in
         AccessibilityNotification.Announcement(message).post()
@@ -39,7 +41,10 @@ final class InfoModel: ObservableObject {
 
     func reload() {
         guard let item = DirectoryLister.item(for: url) else { message = "This item no longer exists."; return }
-        name = item.name
+        let home = HomeLabel.display
+        nameLocked = home.isActive && home.isHome(url.path)
+        redactedName = HomeLabel.isRedacted(url) ? item.name : nil
+        name = home.name(item.name, forPath: url.path)
         kind = item.kindDescription
         icon = IconRaster.fileIcon(url.path, points: 48, scale: IconRaster.scale)
         whereText = url.deletingLastPathComponent().abbreviatedPath
@@ -58,7 +63,7 @@ final class InfoModel: ObservableObject {
         if item.isBrowsableFolder || item.isPackage {
             sizeText = "calculating…"
             sizeTask?.cancel()
-            let name = item.name
+            let name = home.accessibilityName(item.name, forPath: url.path)
             sizeTask = Task { [weak self] in
                 var sawProgress = false
                 var announced = false
@@ -87,7 +92,7 @@ final class InfoModel: ObservableObject {
 
     func rename(to newName: String) {
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed != url.lastPathComponent else { return }
+        guard !nameLocked, trimmed != url.lastPathComponent else { return }
         if let problem = RenameSession.validate(trimmed, renaming: url), !problem.hasPrefix("Names starting") {
             message = problem
             return
@@ -177,10 +182,18 @@ struct InfoView: View {
                     .frame(width: 48, height: 48)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
-                    TextField("Name", text: $editingName)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { model.rename(to: editingName) }
-                        .accessibilityLabel("Name")
+                    if let hidden = model.redactedName {
+                        Text(hidden).font(.headline).lineLimit(1).blur(radius: 6)
+                            .accessibilityLabel("Name: \(HomeNameDisplay.redactedAccessibilityName)")
+                    } else if model.nameLocked {
+                        Text(model.name).font(.headline).lineLimit(1)
+                            .accessibilityLabel("Name: \(model.name)")
+                    } else {
+                        TextField("Name", text: $editingName)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit { model.rename(to: editingName) }
+                            .accessibilityLabel("Name")
+                    }
                     Text(model.kind).font(.caption).foregroundStyle(.secondary)
                         .accessibilityLabel("Kind: \(model.kind)")
                 }
@@ -353,8 +366,8 @@ final class InfoPanelController: NSWindowController, NSWindowDelegate {
         panel.setContentSize(size)
         panel.contentMinSize = NSSize(width: Spacing.infoPanelWidth, height: Self.minimumHeight)
         panel.contentMaxSize = NSSize(width: Spacing.infoPanelWidth, height: .greatestFiniteMagnitude)
-        panel.title = "\(url.lastPathComponent) Info"
-        panel.setAccessibilityLabel("\(url.lastPathComponent) Info")
+        panel.title = "\(HomeLabel.name(url.lastPathComponent, for: url)) Info"
+        panel.setAccessibilityLabel("\(HomeLabel.accessibilityName(url.lastPathComponent, for: url)) Info")
         panel.isFloatingPanel = false
         panel.hidesOnDeactivate = false
         super.init(window: panel)

@@ -44,6 +44,34 @@ final class RegressionModUITests: XCTestCase {
         XCTAssertFalse(services.isExecutionAlwaysAllowed(modId: "a.mod", executable: "/usr/bin/git"))
     }
 
+    func testAppearanceCardsIconsAndSpacersConvertAndRender() throws {
+        let json = try JSONValue.parse(Data(#"{"type":"vstack","spacing":12,"children":[{"type":"card","tinted":true,"color":"warning","padding":16,"align":"center","children":[{"type":"icon","icon":"sun.max.fill","size":40,"color":"warning","label":"clear"},{"type":"text","text":"72","size":500,"weight":"bold","align":"center","color":"nope"}]},{"type":"hstack","children":[{"type":"text","text":"left"},{"type":"spacer"},{"type":"text","text":"right","color":"secondary"}]},{"type":"card","children":[{"type":"text","text":"plain"}]}]}"#.utf8))
+        let node = try XCTUnwrap(ModHost.ModUINode.from(json, owner: "a.mod"))
+        let converted = ModUIConversion.convert(node) { $0.qualified }
+        XCTAssertEqual(converted.issues, [])
+        XCTAssertEqual(converted.node.appearance.spacing, 12)
+        let hero = converted.node.children[0]
+        XCTAssertEqual(hero.appearance.surface, .tinted)
+        XCTAssertEqual(hero.appearance.color, .warning)
+        XCTAssertEqual(hero.appearance.padding, 16)
+        XCTAssertEqual(hero.appearance.alignment, .center)
+        XCTAssertEqual(hero.children[0].kind, .symbol(name: "sun.max.fill"))
+        XCTAssertEqual(hero.children[0].appearance.size, 40)
+        XCTAssertEqual(hero.children[1].appearance.size, 96)
+        XCTAssertEqual(hero.children[1].appearance.weight, .bold)
+        XCTAssertNil(hero.children[1].appearance.color)
+        XCTAssertEqual(converted.node.children[1].children[1].kind, .spacer)
+        XCTAssertEqual(converted.node.children[2].appearance.surface, .card)
+
+        let renderer = ModUIRenderer()
+        renderer.render(converted.node)
+        XCTAssertTrue(renderer.control(withID: hero.id) is ModUICardView)
+        let big = try XCTUnwrap(renderer.control(withID: hero.children[1].id) as? NSTextField)
+        XCTAssertEqual(big.font?.pointSize, 96)
+        XCTAssertEqual(big.alignment, .center)
+        XCTAssertTrue(renderer.control(withID: hero.children[0].id) is NSImageView)
+    }
+
     func testSelectStyleAndIconConvert() throws {
         let json = try JSONValue.parse(Data(#"{"type":"vstack","children":[{"type":"text","text":"Head","style":"title"},{"type":"text","text":"plain","style":"nope"},{"type":"button","text":"Go","icon":"arrow.clockwise","command":"go"},{"type":"button","text":"Bad","icon":"no good"},{"type":"select","id":"branch","label":"Branch","command":"pick","selected":"dev","items":[{"id":"main","title":"main"},{"id":"dev","title":"dev"}]},{"type":"select","id":"other","label":"Other","selected":"gone","items":[{"id":"a","title":"A"}]}]}"#.utf8))
         let node = try XCTUnwrap(ModHost.ModUINode.from(json, owner: "a.mod"))

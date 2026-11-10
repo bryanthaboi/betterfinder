@@ -178,8 +178,18 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
 
     private var lastShowHidden = false
     private var lastFoldersFirst = false
+    private var lastHomeDisplay = HomeLabel.display
 
     @objc private func defaultsChanged() {
+        let home = HomeLabel.display
+        if home != lastHomeDisplay {
+            lastHomeDisplay = home
+            if providedLocation == nil { pathBar.refreshDisplay() }
+            content.refreshDisplay()
+            updateStatus()
+            updateAccessibility()
+            onLocationChange?(self)
+        }
         let hidden = BrowserDefaults.showHidden
         if hidden != lastShowHidden {
             lastShowHidden = hidden
@@ -770,7 +780,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
             statusBar.update(context: StatusBarContext(location: location, providedLocation: p, selection: [], itemCount: auxItemCount, isLoading: aux?.isLoading ?? false))
             return
         }
-        statusBar.update(location: location, providedLocation: nil, model: model, selection: selectedItems, sizes: sizes)
+        statusBar.update(location: location, providedLocation: nil, model: model, selection: HomeLabel.masked(selectedItems), sizes: sizes)
     }
 
     func scheduleSizeRequest() {
@@ -960,7 +970,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     }
 
     @objc func openInNewWindow(_ sender: Any?) {
-        for item in selectedItems where item.isBrowsableFolder { BrowserWindowManager.shared.openWindow(at: .folder(item.url)) }
+        for item in selectedItems where item.isBrowsableFolder { BrowserWindowManager.shared.open(at: .folder(item.url), intent: .explicitNewWindow) }
     }
 
     @objc func showPackageContents(_ sender: Any?) {
@@ -1060,11 +1070,19 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         FileCommands.copyPaths(urls)
     }
 
+    var terminalTarget: URL? {
+        guard remote == nil, providedLocation == nil else { return nil }
+        return TerminalApp.targetDirectory(selection: selectedItems, location: location.url)
+    }
+
     @objc func openInTerminal(_ sender: Any?) {
-        let sel = selectedItems
-        let target: URL?
-        if sel.count == 1, sel[0].isBrowsableFolder { target = sel[0].url } else { target = location.url ?? sel.first?.url.deletingLastPathComponent() }
-        if let target { FileCommands.openInTerminal(target) }
+        if let target = terminalTarget { FileCommands.openInTerminal(target) }
+    }
+
+    @objc func miniInfo(_ sender: Any?) {
+        guard remote == nil, providedLocation == nil else { return }
+        let urls = selectedURLs.isEmpty ? (location.url.map { [$0] } ?? []) : selectedURLs
+        MiniInfoPanelController.show(urls)
     }
 
     @objc func newFolder(_ sender: Any?) {
@@ -1093,8 +1111,15 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     }
 
     @objc func newFile(_ sender: Any?) {
-        guard let dir = destinationFolder else { return }
-        let template = (sender as? NSMenuItem)?.representedObject as? FileTemplate ?? FileTemplate.all[0]
+        createFile((sender as? NSMenuItem)?.representedObject as? FileTemplate ?? .text)
+    }
+
+    @objc func newTextDocument(_ sender: Any?) { createFile(.text) }
+    @objc func newMarkdownDocument(_ sender: Any?) { createFile(.markdown) }
+    @objc func newEmptyFile(_ sender: Any?) { createFile(.empty) }
+
+    func createFile(_ template: FileTemplate) {
+        guard remote == nil, let dir = destinationFolder else { return }
         Task { [weak self] in
             do {
                 let url = try await FileActions.createFileAsync(in: dir, name: template.fileName, contents: template.contents)
@@ -1188,7 +1213,8 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
             return canCreateFolder
         case #selector(uploadFiles(_:)):
             return caps.canWrite
-        case #selector(newFile(_:)), #selector(newFolderWithSelection(_:)), #selector(duplicate(_:)), #selector(getInfo(_:)), #selector(openInTerminal(_:)),
+        case #selector(newFile(_:)), #selector(newTextDocument(_:)), #selector(newMarkdownDocument(_:)), #selector(newEmptyFile(_:)), #selector(miniInfo(_:)),
+             #selector(newFolderWithSelection(_:)), #selector(duplicate(_:)), #selector(getInfo(_:)), #selector(openInTerminal(_:)),
              #selector(showInEnclosingFolder(_:)), #selector(toggleTag(_:)), #selector(showPackageContents(_:)), #selector(openInNewTab(_:)),
              #selector(openInNewWindow(_:)), #selector(revealInSidebarFavorites(_:)), #selector(putBack(_:)):
             return false
@@ -1203,7 +1229,8 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         if let r = remote { return validateRemoteMenuItem(menuItem, r) }
         if providedLocation != nil {
             switch menuItem.action {
-            case #selector(newFolder(_:)), #selector(newFile(_:)), #selector(paste(_:)), #selector(pasteAndMove(_:)), #selector(newFolderWithSelection(_:)), #selector(putBack(_:)): return false
+            case #selector(newFolder(_:)), #selector(newFile(_:)), #selector(newTextDocument(_:)), #selector(newMarkdownDocument(_:)), #selector(newEmptyFile(_:)),
+                 #selector(paste(_:)), #selector(pasteAndMove(_:)), #selector(newFolderWithSelection(_:)), #selector(putBack(_:)), #selector(openInTerminal(_:)), #selector(miniInfo(_:)): return false
             default: break
             }
         }
@@ -1222,8 +1249,12 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
             return hasSel && location.isVirtual
         case #selector(paste(_:)), #selector(pasteAndMove(_:)):
             return destinationFolder != nil && (Clipboard.shared.hasFiles || Clipboard.shared.hasResources)
-        case #selector(newFolder(_:)), #selector(newFile(_:)):
+        case #selector(newFolder(_:)), #selector(newFile(_:)), #selector(newTextDocument(_:)), #selector(newMarkdownDocument(_:)), #selector(newEmptyFile(_:)):
             return destinationFolder != nil
+        case #selector(openInTerminal(_:)):
+            return terminalTarget != nil
+        case #selector(getInfo(_:)), #selector(miniInfo(_:)):
+            return hasSel || location.url != nil
         case #selector(newFolderWithSelection(_:)):
             return destinationFolder != nil && hasSel
         case #selector(copyToOtherPane(_:)), #selector(moveToOtherPane(_:)):

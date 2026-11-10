@@ -76,7 +76,14 @@ enum BrowserDefaults {
         static let knownTags = "knownTags"
         static let expanded = "expandedFolders"
         static let expandedOrder = "expandedFoldersOrder"
+        static let openFoldersInTabs = "openFoldersInTabs"
+        static let terminalAppPath = "terminalAppPath"
+        static let terminalBundleID = "terminalBundleID"
     }
+
+    static var openFoldersInTabs: Bool { store.bool(forKey: Key.openFoldersInTabs) }
+    static var terminalAppPath: String? { store.string(forKey: Key.terminalAppPath) }
+    static var terminalBundleID: String? { store.string(forKey: Key.terminalBundleID) }
 
     static var viewMode: BrowserViewMode {
         get { BrowserViewMode(rawValue: store.integer(forKey: Key.viewMode)) ?? .list }

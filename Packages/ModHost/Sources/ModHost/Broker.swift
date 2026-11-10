@@ -76,6 +76,10 @@ final class ModBroker: ModCallHandling, @unchecked Sendable {
             guard let node = ModUINode.from(a[1], owner: mod.id) else { throw ModCallError.limit("panel node is invalid or too large") }
             await runtime?.applyUI(.panelContent(panel: id, node: node))
             return .null
+        case "ui.showPanel":
+            let id = try declared(mod, a[0], mod.manifest.contributes.panels.map(\.id), "panel")
+            await runtime?.applyUI(.showPanel(panel: id))
+            return .null
         case "ui.setStatusText":
             let id = try declared(mod, a[0], mod.manifest.contributes.statusBar.map(\.id), "status bar item")
             await runtime?.applyUI(.statusText(item: id, text: String((a[1].stringValue ?? "").prefix(256))))

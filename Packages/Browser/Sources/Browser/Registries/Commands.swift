@@ -16,6 +16,8 @@ public struct BrowserContext {
 
     public func togglePanel(_ qualifiedID: String) { controller?.togglePanel(qualifiedID) }
 
+    public func showPanel(_ qualifiedID: String) { controller?.setPanel(qualifiedID, open: true) }
+
     public init(location: BrowserLocation, providedLocation: ProvidedLocation? = nil, selection: [FileItem] = [], isDualPane: Bool = false, windowNumber: Int? = nil) {
         self.location = location
         self.providedLocation = providedLocation
@@ -174,6 +176,7 @@ enum BuiltInCommands {
         func hasSelection(_ c: BrowserContext) -> Bool { !c.selection.isEmpty }
         func send(_ sel: Selector) -> @MainActor (BrowserContext) -> Void { { $0.controller?.dispatch(sel) } }
         func viewModes(_ c: BrowserContext) -> Bool { c.controller?.activePane.supportsViewModes ?? true }
+        func canCreateFile(_ c: BrowserContext) -> Bool { c.controller?.activePane.canCreateFile ?? false }
         let specs: [CommandSpec] = [
             CommandSpec(id: "go.back", title: "Back", category: "Go", symbolName: "chevron.left", isEnabled: { !($0.controller?.activePane.backStack.isEmpty ?? true) }, handler: send(#selector(BrowserWindowController.goBack(_:)))),
             CommandSpec(id: "go.forward", title: "Forward", category: "Go", symbolName: "chevron.right", isEnabled: { !($0.controller?.activePane.forwardStack.isEmpty ?? true) }, handler: send(#selector(BrowserWindowController.goForward(_:)))),
@@ -196,10 +199,16 @@ enum BuiltInCommands {
             CommandSpec(id: "view.decreaseIcons", title: "Decrease Icon Size", category: "View", handler: send(#selector(BrowserWindowController.decreaseIconSize(_:)))),
             CommandSpec(id: "file.newTab", title: "New Tab", category: "File", symbolName: "plus.square.on.square", handler: send(#selector(BrowserWindowController.newTab(_:)))),
             CommandSpec(id: "file.newFolder", title: "New Folder", category: "File", symbolName: "folder.badge.plus", isEnabled: { $0.controller?.activePane.canCreateFolder ?? false }, handler: send(#selector(BrowserWindowController.newFolder(_:)))),
-            CommandSpec(id: "file.newFile", title: "New File", category: "File", symbolName: "doc.badge.plus", isEnabled: { $0.controller?.activePane.canCreateFile ?? false }, handler: send(#selector(BrowserWindowController.newFile(_:)))),
+            CommandSpec(id: "file.newFile", title: "New Text Document", category: "File", symbolName: "doc.badge.plus", isEnabled: canCreateFile, handler: send(#selector(BrowserWindowController.newTextDocument(_:)))),
+            CommandSpec(id: "file.newMarkdownDocument", title: "New Markdown Document", category: "File", symbolName: "doc.richtext", isEnabled: canCreateFile, handler: send(#selector(BrowserWindowController.newMarkdownDocument(_:)))),
+            CommandSpec(id: "file.newEmptyFile", title: "New Empty File", category: "File", symbolName: "doc", isEnabled: canCreateFile, handler: send(#selector(BrowserWindowController.newEmptyFile(_:)))),
             CommandSpec(id: "file.getInfo", title: "Get Info", category: "File", symbolName: "info.circle", handler: send(#selector(BrowserWindowController.getInfo(_:)))),
+            CommandSpec(id: "file.miniInfo", title: "Mini Info", subtitle: "Floating size and kind for the selection", category: "File", symbolName: "info.square", isEnabled: { c in
+                guard let pane = c.controller?.activePane else { return false }
+                return pane.providedLocation == nil && (!c.selection.isEmpty || c.location.url != nil)
+            }, handler: send(#selector(BrowserWindowController.miniInfo(_:)))),
             CommandSpec(id: "file.copyPath", title: "Copy Path", category: "File", symbolName: "doc.on.doc", handler: send(#selector(BrowserWindowController.copyPath(_:)))),
-            CommandSpec(id: "file.openInTerminal", title: "Open in Terminal", category: "File", symbolName: "terminal", handler: send(#selector(BrowserWindowController.openInTerminal(_:)))),
+            CommandSpec(id: "file.openInTerminal", title: "Open in Terminal", category: "File", symbolName: "terminal", isEnabled: { $0.controller?.activePane.terminalTarget != nil }, handler: send(#selector(BrowserWindowController.openInTerminal(_:)))),
             CommandSpec(id: "file.open", title: "Open Selection", category: "File", isEnabled: hasSelection, handler: send(#selector(BrowserPaneController.openSelection(_:)))),
             CommandSpec(id: "file.rename", title: "Rename", category: "File", isEnabled: { $0.selection.count == 1 }, handler: send(#selector(BrowserPaneController.renameSelection(_:)))),
             CommandSpec(id: "file.duplicate", title: "Duplicate", category: "File", symbolName: "plus.square.on.square", isEnabled: hasSelection, handler: send(#selector(BrowserPaneController.duplicate(_:)))),

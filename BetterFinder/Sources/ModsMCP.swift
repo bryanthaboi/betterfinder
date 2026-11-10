@@ -25,6 +25,14 @@ final class ModsMCP {
 
     var isRunning: Bool { host?.isRunning ?? false }
 
+    var endpointURL: String? { isRunning ? host?.endpoint?.url : nil }
+
+    func startQuietly() {
+        Task {
+            do { try await start() } catch { showError("The MCP server couldn't start", error) }
+        }
+    }
+
     static var cliURL: URL { Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/betterfinder-mod") }
 
     static var appVersion: String { Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0" }
@@ -156,7 +164,7 @@ final class ModsMCP {
         window(request.windowID)?.makeKeyAndOrderFront(nil)
         let outcome = await r.loadUnpacked(folder, approver: { m, _ in
             m.id == manifest.id ? wanted.intersection(Self.permissionIDs(m)) : nil
-        })
+        }, preapproved: wanted)
         if outcome.cancelled { throw LiveHostError.rejected("the load was cancelled in betterfinder") }
         let diagnostics = outcome.receipt?.diagnostics ?? []
         guard outcome.installed else {

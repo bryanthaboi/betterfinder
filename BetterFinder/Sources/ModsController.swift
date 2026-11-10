@@ -23,6 +23,7 @@ final class ModsController {
                 let ms = Int(Date().timeIntervalSince(t0) * 1000)
                 log.info("mods started in \(ms, privacy: .public) ms (controller \(Int((r.startDuration ?? 0) * 1000), privacy: .public) ms)")
                 attachSettingsIfLoaded()
+                ExtraSettingsPanes.shared.install()
             } catch {
                 log.error("mods unavailable: \(error.localizedDescription, privacy: .public)")
             }

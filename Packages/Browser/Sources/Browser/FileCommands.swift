@@ -1,4 +1,5 @@
 import AppKit
+import FSCore
 import FileOps
 
 struct FileTemplate: Hashable, Sendable {
@@ -6,14 +7,43 @@ struct FileTemplate: Hashable, Sendable {
     let fileName: String
     let contents: Data
 
-    static let all: [FileTemplate] = [
-        FileTemplate(title: "Text File", fileName: "untitled.txt", contents: Data()),
-        FileTemplate(title: "Markdown File", fileName: "untitled.md", contents: Data("# Untitled\n".utf8)),
-        FileTemplate(title: "Empty File", fileName: "untitled", contents: Data()),
+    static let text = FileTemplate(title: "Text Document", fileName: "untitled.txt", contents: Data())
+    static let markdown = FileTemplate(title: "Markdown Document", fileName: "untitled.md", contents: Data("# Untitled\n".utf8))
+    static let empty = FileTemplate(title: "Empty File", fileName: "untitled", contents: Data())
+    static let primary: [FileTemplate] = [text, markdown, empty]
+
+    static let all: [FileTemplate] = primary + [
         FileTemplate(title: "Shell Script", fileName: "untitled.sh", contents: Data("#!/bin/sh\n".utf8)),
         FileTemplate(title: "JSON File", fileName: "untitled.json", contents: Data("{}\n".utf8)),
         FileTemplate(title: "HTML File", fileName: "untitled.html", contents: Data("<!DOCTYPE html>\n<html>\n<head><meta charset=\"utf-8\"><title>Untitled</title></head>\n<body>\n</body>\n</html>\n".utf8)),
     ]
+}
+
+enum TerminalApp {
+    static let defaultBundleID = "com.apple.Terminal"
+    static let fallbackPath = "/System/Applications/Utilities/Terminal.app"
+
+    static func resolve(customPath: String?, bundleID: String?, exists: (String) -> Bool, lookup: (String) -> URL?) -> URL? {
+        if let customPath, !customPath.isEmpty, exists(customPath) { return URL(fileURLWithPath: customPath, isDirectory: true) }
+        if let bundleID, !bundleID.isEmpty, let url = lookup(bundleID) { return url }
+        if let url = lookup(defaultBundleID) { return url }
+        return exists(fallbackPath) ? URL(fileURLWithPath: fallbackPath, isDirectory: true) : nil
+    }
+
+    @MainActor
+    static func current() -> URL? {
+        resolve(
+            customPath: BrowserDefaults.terminalAppPath,
+            bundleID: BrowserDefaults.terminalBundleID,
+            exists: { FileManager.default.fileExists(atPath: $0) },
+            lookup: { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }
+        )
+    }
+
+    static func targetDirectory(selection: [FileItem], location: URL?) -> URL? {
+        if selection.count == 1, selection[0].isBrowsableFolder { return selection[0].url }
+        return location ?? selection.first?.url.deletingLastPathComponent()
+    }
 }
 
 @MainActor
@@ -26,18 +56,12 @@ enum FileCommands {
     }
 
     static func openInTerminal(_ dir: URL) {
-        let bundleIDs = [UserDefaults.standard.string(forKey: "terminalBundleID"), "com.apple.Terminal"].compactMap { $0 }
-        for id in bundleIDs {
-            if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-                let config = NSWorkspace.OpenConfiguration()
-                config.activates = true
-                NSWorkspace.shared.open([dir], withApplicationAt: app, configuration: config) { _, error in
-                    if let error { onMain { NSApp.presentError(error) } }
-                }
-                return
-            }
+        guard let app = TerminalApp.current() else { NSSound.beep(); return }
+        let config = NSWorkspace.OpenConfiguration()
+        config.activates = true
+        NSWorkspace.shared.open([dir], withApplicationAt: app, configuration: config) { _, error in
+            if let error { onMain { NSApp.presentError(error) } }
         }
-        NSSound.beep()
     }
 
     static func tags(of url: URL) -> [String] {

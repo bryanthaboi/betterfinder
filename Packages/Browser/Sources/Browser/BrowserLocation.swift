@@ -51,9 +51,9 @@ public enum BrowserLocation: Hashable, Sendable {
         case .computer: return DemoEnvironment.computerName
         case .folder(let u):
             if u.path == "/" { return (try? u.resourceValues(forKeys: [.volumeLocalizedNameKey]).volumeLocalizedName) ?? "/" }
-            return FileManager.default.displayName(atPath: u.path)
+            return u.displayTitle
         case .search(let scope, let q):
-            let scopeName = scope.path == "/" ? "This Mac" : FileManager.default.displayName(atPath: scope.path)
+            let scopeName = scope.path == "/" ? "This Mac" : scope.displayTitle
             return "Searching “\(q)” in \(scopeName)"
         case .recents: return "Recents"
         case .tag(let t): return t
@@ -112,4 +112,8 @@ extension URL {
     }
 
     var abbreviatedPath: String { (path as NSString).abbreviatingWithTildeInPath }
+
+    var displayTitle: String { HomeLabel.name(for: self) }
+
+    var displayPath: String { HomeLabel.path(self) }
 }

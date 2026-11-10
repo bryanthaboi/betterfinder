@@ -44,8 +44,15 @@ enum MainMenu {
         let file = NSMenu(title: "File")
         file.addItem(item("New Window", #selector(AppDelegate.newWindow(_:)), "n"))
         file.addItem(item("New Tab", #selector(BrowserWindowController.newTab(_:)), "t"))
-        file.addItem(item("New Folder", #selector(BrowserWindowController.newFolder(_:)), "n", [.command, .shift]))
-        file.addItem(item("New File", #selector(BrowserWindowController.newFile(_:)), "n", [.command, .option]))
+        let new = NSMenu(title: "New")
+        new.addItem(item("Folder", #selector(BrowserWindowController.newFolder(_:)), "n", [.command, .shift]))
+        new.addItem(.separator())
+        new.addItem(item("Text Document", #selector(BrowserWindowController.newTextDocument(_:)), "n", [.command, .option]))
+        new.addItem(item("Markdown Document", #selector(BrowserWindowController.newMarkdownDocument(_:)), ""))
+        new.addItem(item("Empty File", #selector(BrowserWindowController.newEmptyFile(_:)), ""))
+        let newItem = NSMenuItem(title: "New", action: nil, keyEquivalent: "")
+        newItem.submenu = new
+        file.addItem(newItem)
         file.addItem(.separator())
         file.addItem(item("Open", Selector(("openSelection:")), "o"))
         file.addItem(item("Close Window", #selector(NSWindow.performClose(_:)), "w"))
@@ -95,6 +102,7 @@ enum MainMenu {
         view.addItem(item("Command Palette", Selector(("showCommandPalette:")), "p", [.command, .shift]))
         view.addItem(item("Refresh", #selector(BrowserWindowController.refresh(_:)), "r"))
         view.addItem(.separator())
+        view.delegate = PanelMenuUpdater.shared
         view.addItem(item("Toggle Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))
         view.addItem(item("Show Tab Bar", #selector(NSWindow.toggleTabBar(_:)), "t", [.command, .shift]))
         view.addItem(item("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control]))
@@ -171,5 +179,38 @@ enum MainMenu {
         top.submenu = menu
         menu.title = title
         main.addItem(top)
+    }
+}
+
+@MainActor
+final class PanelMenuUpdater: NSObject, NSMenuDelegate {
+    static let shared = PanelMenuUpdater()
+    static let itemTag = 7_263_001
+
+    func menuNeedsUpdate(_ menu: NSMenu) {
+        for item in menu.items where item.tag == Self.itemTag { menu.removeItem(item) }
+        guard let controller = (NSApp.keyWindow ?? NSApp.mainWindow)?.windowController as? BrowserWindowController else { return }
+        let entries = controller.registries.panels.visibleEntries
+        guard !entries.isEmpty else { return }
+        var index = menu.items.firstIndex { $0.action == #selector(NSSplitViewController.toggleSidebar(_:)) } ?? menu.items.count
+        for entry in entries {
+            let item = NSMenuItem(title: "\(entry.item.title) Panel", action: #selector(togglePanel(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = Self.itemTag
+            item.representedObject = entry.qualifiedID
+            item.state = controller.isPanelOpen(entry.qualifiedID) ? .on : .off
+            if let symbol = entry.item.symbolName { item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil) }
+            menu.insertItem(item, at: index)
+            index += 1
+        }
+        let separator = NSMenuItem.separator()
+        separator.tag = Self.itemTag
+        menu.insertItem(separator, at: index)
+    }
+
+    @objc func togglePanel(_ sender: NSMenuItem) {
+        guard let id = sender.representedObject as? String,
+              let controller = (NSApp.keyWindow ?? NSApp.mainWindow)?.windowController as? BrowserWindowController else { return }
+        controller.togglePanel(id)
     }
 }

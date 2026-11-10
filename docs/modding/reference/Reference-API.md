@@ -1,6 +1,6 @@
 # betterfinder mod API 1.0.0
 
-Generated from the ModKit catalog (digest `f4307c2862dc902e53347b79cc166a986c3f91d11a0e07fc24f33c2d55fb5856`). Manifest version 1, script format 1, toolchain `modkit/1.0.0 bfscript/1`.
+Generated from the ModKit catalog (digest `9559763a1aefb33f2a820c3a9e306ac20a4c4be46bfe0a3b75bb995c486dbdd3`). Manifest version 1, script format 1, toolchain `modkit/1.0.0 bfscript/1`.
 
 ## Limits
 
@@ -130,6 +130,7 @@ Panels, status text, toolbar state, toasts and native pickers.
 | Function | Parameters | Returns | Requires | Deadline | Cancellable | Failure | Errors |
 |---|---|---|---|---|---|---|---|
 | `ui.setPanel` | `panelId: string, node: UINode` | `void` | `ui (surfaces: panel)` | 1000 ms | yes | reject | `notFound`, `limitExceeded` |
+| `ui.showPanel` (user gesture) | `panelId: string` | `void` | `ui (surfaces: panel)` | 1000 ms | yes | reject | `notFound`, `noGesture` |
 | `ui.setStatusText` | `itemId: string, text: string` | `void` | `ui (surfaces: statusBar)` | 1000 ms | yes | reject | `notFound` |
 | `ui.setToolbarItemState` | `itemId: string, enabled: boolean, title?: string` | `void` | `ui (surfaces: toolbar)` | 1000 ms | yes | reject | `notFound` |
 | `ui.notify` | `message: string, level: NotifyLevel` | `void` | none | 1000 ms | yes | reject | `limitExceeded` |
@@ -374,7 +375,25 @@ One of: `queued`, `running`, `done`, `failed`, `cancelled`
 
 Native control a UINode maps to.
 
-One of: `vstack`, `hstack`, `text`, `markdown`, `button`, `list`, `progress`, `divider`, `textField`, `select`
+One of: `vstack`, `hstack`, `text`, `markdown`, `button`, `list`, `progress`, `divider`, `textField`, `select`, `icon`, `spacer`, `card`
+
+### `UIColor`
+
+Theme-aware colour role.
+
+One of: `primary`, `secondary`, `accent`, `success`, `warning`, `danger`
+
+### `UIWeight`
+
+Font weight.
+
+One of: `regular`, `medium`, `semibold`, `bold`
+
+### `UIAlign`
+
+Horizontal alignment.
+
+One of: `leading`, `center`, `trailing`
 
 ### `UITextStyle`
 
@@ -493,7 +512,14 @@ Data-only description of a native control tree.
 | `label` | `string` | no | Accessibility label. |
 | `command` | `string` | no | Command run on press; for a textField, run on Return with args {id, value, fields}; for a select, run on change with the chosen item id as value; for a list, run on double-click with the row id as value. Buttons receive args {fields} with the panel's current text field and select values. |
 | `style` | `UITextStyle` | no | Look of a text node; body when omitted. |
-| `icon` | `string` | no | SF Symbol name drawn on a button. |
+| `icon` | `string` | no | SF Symbol name drawn on a button, or shown by an icon node. |
+| `color` | `UIColor` | no | Colour of a text or icon node; for a tinted card, the tint. |
+| `size` | `number` | no | Point size of a text or icon node, 8 to 96. |
+| `weight` | `UIWeight` | no | Font weight of a text or icon node. |
+| `align` | `UIAlign` | no | Alignment of a text node, or of the children of a vstack or card. |
+| `spacing` | `number` | no | Gap between the children of a stack or card, 0 to 64. |
+| `padding` | `number` | no | Inset around the children of a stack or card, 0 to 64. |
+| `tinted` | `boolean` | no | Fill a card with its colour instead of the neutral card background. |
 | `selected` | `string` | no | Item id a select shows as chosen; the first item when omitted. |
 | `placeholder` | `string` | no | Placeholder of a textField; text is its initial value. |
 | `value` | `number` | no |  |

@@ -712,7 +712,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         if item.isPackage || item.contentType?.conforms(to: .applicationBundle) == true {
             return FileManager.default.displayName(atPath: item.url.path)
         }
-        return item.name
+        return HomeLabel.name(item.name, for: item.url)
     }
 
     func outlineView(_ outlineView: NSOutlineView, viewFor tableColumn: NSTableColumn?, item: Any) -> NSView? {
@@ -739,7 +739,12 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
             let dim: CGFloat = Clipboard.shared.isCut(it.url) ? 0.4 : (it.isHidden ? 0.5 : 1)
             cell.setIcon(for: it, dimmed: dim)
             tf.alphaValue = Clipboard.shared.isCut(it.url) ? 0.55 : 1
-            cell.setAccessibilityLabel(Self.accessibilityLabel(for: it, name: shown, cut: Clipboard.shared.isCut(it.url)))
+            if HomeLabel.isRedacted(it.url) {
+                let font = theme.listFont
+                let hidden = it.name
+                cell.attributedText = { color in RedactedText.attributed(hidden, font: font, color: color) }
+            }
+            cell.setAccessibilityLabel(Self.accessibilityLabel(for: it, name: HomeLabel.accessibilityName(shown, for: it.url), cut: Clipboard.shared.isCut(it.url)))
         case Col.modified:
             tf.stringValue = it.dateModified.map { Self.dateFormatter.string(from: $0) } ?? "--"
         case Col.added:
@@ -775,7 +780,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
             }
         case Col.location:
             tf.stringValue = it.url.deletingLastPathComponent().abbreviatedPath
-            tf.toolTip = it.url.deletingLastPathComponent().path
+            tf.toolTip = it.url.deletingLastPathComponent().displayPath
         default:
             if let qid = contributedQID {
                 if let v = columnStore.cachedValue(column: qid, for: it) {

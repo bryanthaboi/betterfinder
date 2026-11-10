@@ -115,7 +115,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         c.table.registerForDraggedTypes(DropSupport.types)
         c.table.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: false)
         c.table.setDraggingSourceOperationMask([.copy, .move, .link, .generic], forLocal: true)
-        c.table.setAccessibilityLabel("Files in \(url.map { FileManager.default.displayName(atPath: $0.path) } ?? (pane?.location.displayName ?? "folder"))")
+        c.table.setAccessibilityLabel("Files in \(url.map { HomeLabel.accessibilityName($0.displayTitle, for: $0) } ?? (pane?.location.displayName ?? "folder"))")
         c.scroll.documentView = c.table
         c.scroll.hasVerticalScroller = true
         c.scroll.autohidesScrollers = true
@@ -444,10 +444,10 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         let cell = (tableView.makeView(withIdentifier: .init("colcell"), owner: self) as? ColumnCellView) ?? ColumnCellView()
         if cell.textField?.font != theme.listFont { cell.textField?.font = theme.listFont; cell.needsLayout = true }
         cell.normalTextColor = theme.textColor
-        let shown = it.isPackage ? FileManager.default.displayName(atPath: it.url.path) : it.name
+        let shown = it.isPackage ? FileManager.default.displayName(atPath: it.url.path) : HomeLabel.name(it.name, for: it.url)
         cell.textField?.stringValue = shown
         cell.textField?.isEditable = false
-        cell.setAccessibilityLabel(ListViewController.accessibilityLabel(for: it, name: shown, cut: Clipboard.shared.isCut(it.url)))
+        cell.setAccessibilityLabel(ListViewController.accessibilityLabel(for: it, name: HomeLabel.accessibilityName(shown, for: it.url), cut: Clipboard.shared.isCut(it.url)))
         cell.setIcon(for: it, dimmed: Clipboard.shared.isCut(it.url) ? 0.4 : (it.isHidden ? 0.5 : 1))
         cell.chevron.isHidden = !it.isBrowsableFolder
         let leading = theme.layout.listLeadingInset

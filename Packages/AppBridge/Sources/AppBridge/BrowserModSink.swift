@@ -594,6 +594,8 @@ public final class BrowserModSink: ModUIRegistrySink {
             validateToolbars()
         case .notify(let modId, let message, let level):
             onNotify?(modId, message, level)
+        case .showPanel(let panel):
+            currentContext().showPanel(panel.qualified)
         case .openLocation(let location, let path):
             let pid = Self.locationProviderID(location)
             guard let spec = registries.locations.spec(for: pid) else { return }

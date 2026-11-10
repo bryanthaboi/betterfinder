@@ -183,7 +183,7 @@ final class IconViewController: BrowserContentController, NSCollectionViewDataSo
         let theme = ThemeManager.shared.current
         item.applyTheme(theme)
         item.representedURL = it.url
-        let shown = it.isPackage ? FileManager.default.displayName(atPath: it.url.path) : it.name
+        let shown = it.isPackage ? FileManager.default.displayName(atPath: it.url.path) : HomeLabel.name(it.name, for: it.url)
         item.textField?.stringValue = shown
         item.textField?.isEditable = false
         item.iconSize = iconSize

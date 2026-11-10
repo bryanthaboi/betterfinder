@@ -27,6 +27,7 @@ final class BrowserWindow: NSWindow {
         Shortcut(key: "d", keyCode: nil, mods: [.command, .shift], action: #selector(BrowserWindowController.toggleDualPane(_:))),
         Shortcut(key: nil, keyCode: 47, mods: [.command, .shift], action: #selector(BrowserWindowController.toggleHiddenFiles(_:))),
         Shortcut(key: "i", keyCode: nil, mods: .command, action: #selector(BrowserWindowController.getInfo(_:))),
+        Shortcut(key: "i", keyCode: nil, mods: [.command, .option], action: #selector(BrowserWindowController.miniInfo(_:))),
         Shortcut(key: "c", keyCode: nil, mods: [.command, .option], action: #selector(BrowserWindowController.copyPath(_:))),
         Shortcut(key: nil, keyCode: 30, mods: [.command, .shift], action: #selector(NSWindow.selectNextTab(_:))),
         Shortcut(key: nil, keyCode: 33, mods: [.command, .shift], action: #selector(NSWindow.selectPreviousTab(_:))),

@@ -14,6 +14,10 @@ struct GeneralPane: View {
     @AppStorage(SettingsKey.calculateFolderSizesOnNetwork) private var calcSizesNetwork = false
     @AppStorage(SettingsKey.showAllocatedSize) private var allocated = true
     @AppStorage(SettingsKey.returnOpens) private var returnOpens = false
+    @AppStorage(SettingsKey.openFoldersInTabs) private var openFoldersInTabs = false
+    @AppStorage(SettingsKey.terminalAppPath) private var terminalPath = ""
+    @AppStorage(SettingsKey.homeFolderNameStyle) private var homeNameStyle = HomeNameStyle.real.rawValue
+    @AppStorage(SettingsKey.homeFolderNameCustom) private var homeNameCustom = ""
     @State private var loginEnabled = LoginItem.isEnabled
     @State private var loginNeedsApproval = LoginItem.state == .requiresApproval
     @State private var loginError: String?
@@ -37,6 +41,11 @@ struct GeneralPane: View {
                         Spacer()
                         Button("Choose…", action: chooseFolder)
                     }
+                }
+                VStack(alignment: .leading, spacing: Spacing.relatedText) {
+                    Toggle("Open folders in tabs in the active window", isOn: $openFoldersInTabs)
+                    Text("Folders opened from other apps, the Dock or Open in New Window join the last active window as a tab. File > New Window always opens a window.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Toggle("Open betterfinder at login", isOn: Binding(get: { loginEnabled }, set: setLogin))
                 if loginNeedsApproval {
@@ -73,6 +82,35 @@ struct GeneralPane: View {
                     Text("Logical size").tag(false)
                 }
                 .pickerStyle(.radioGroup)
+            }
+            Section("Terminal") {
+                HStack {
+                    Text("Open in Terminal uses")
+                    Spacer()
+                    Text(TerminalChoice.displayName(path: terminalPath)).foregroundStyle(.secondary)
+                        .accessibilityLabel("Terminal app: \(TerminalChoice.displayName(path: terminalPath))")
+                    Menu("Change") {
+                        Button("Terminal") { TerminalChoice.store(path: "", bundleID: nil) }
+                        ForEach(TerminalChoice.installed { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) }) { choice in
+                            Button(choice.name) { TerminalChoice.store(path: choice.path, bundleID: choice.bundleID) }
+                        }
+                        Divider()
+                        Button("Choose App…", action: chooseTerminal)
+                    }
+                    .fixedSize()
+                    .accessibilityLabel("Change terminal app")
+                }
+            }
+            Section("Privacy") {
+                Picker("Home folder name", selection: $homeNameStyle) {
+                    ForEach(HomeNameStyle.allCases) { Text($0.title).tag($0.rawValue) }
+                }
+                if homeNameStyle == HomeNameStyle.custom.rawValue {
+                    TextField("Shown instead", text: $homeNameCustom, prompt: Text("me"))
+                        .accessibilityLabel("Custom home folder name")
+                }
+                Text("Changes how your home folder is shown in the path bar, sidebar, titles and info windows. Files and paths you type are not affected.")
+                    .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             }
             Section("Keyboard") {
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
@@ -130,6 +168,17 @@ struct GeneralPane: View {
             hotKeyError = error.localizedDescription
             combo = GlobalHotKey.shared.combo
         }
+    }
+
+    private func chooseTerminal() {
+        let panel = NSOpenPanel()
+        panel.directoryURL = URL(fileURLWithPath: "/Applications", isDirectory: true)
+        panel.allowedContentTypes = [.applicationBundle]
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        TerminalChoice.store(path: url.path, bundleID: Bundle(url: url)?.bundleIdentifier)
     }
 
     private func chooseFolder() {

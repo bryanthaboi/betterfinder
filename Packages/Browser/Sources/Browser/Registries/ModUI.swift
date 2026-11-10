@@ -42,6 +42,79 @@ public struct ModUITableRow: Hashable, Sendable {
     }
 }
 
+public struct ModUIAppearance: Hashable, Sendable {
+    public enum Role: String, Hashable, Sendable { case primary, secondary, accent, success, warning, danger }
+    public enum Weight: String, Hashable, Sendable { case regular, medium, semibold, bold }
+    public enum Alignment: String, Hashable, Sendable { case leading, center, trailing }
+    public enum Surface: String, Hashable, Sendable { case card, tinted }
+
+    public var color: Role?
+    public var size: Double?
+    public var weight: Weight?
+    public var alignment: Alignment?
+    public var spacing: Double?
+    public var padding: Double?
+    public var surface: Surface?
+
+    public init(color: Role? = nil, size: Double? = nil, weight: Weight? = nil, alignment: Alignment? = nil, spacing: Double? = nil, padding: Double? = nil, surface: Surface? = nil) {
+        self.color = color
+        self.size = size
+        self.weight = weight
+        self.alignment = alignment
+        self.spacing = spacing
+        self.padding = padding
+        self.surface = surface
+    }
+
+    public var isEmpty: Bool { self == ModUIAppearance() }
+
+    var fontWeight: NSFont.Weight? {
+        switch weight {
+        case .regular: return .regular
+        case .medium: return .medium
+        case .semibold: return .semibold
+        case .bold: return .bold
+        case nil: return nil
+        }
+    }
+
+    @MainActor
+    func resolvedColor(_ role: Role, theme: Theme) -> NSColor {
+        switch role {
+        case .primary: return theme.textColor
+        case .secondary: return theme.secondaryTextColor
+        case .accent: return theme.accentColor
+        case .success: return .systemGreen
+        case .warning: return .systemOrange
+        case .danger: return .systemRed
+        }
+    }
+}
+
+final class ModUICardView: NSView {
+    var surface: ModUIAppearance.Surface = .card
+    var role: ModUIAppearance.Role?
+
+    override var isFlipped: Bool { true }
+
+    @MainActor
+    func apply(theme: Theme, appearance: ModUIAppearance) {
+        wantsLayer = true
+        layer?.cornerRadius = 10
+        layer?.cornerCurve = .continuous
+        let tint = appearance.resolvedColor(role ?? .accent, theme: theme)
+        switch surface {
+        case .card:
+            layer?.backgroundColor = theme.textColor.withAlphaComponent(0.06).cgColor
+            layer?.borderColor = theme.textColor.withAlphaComponent(0.08).cgColor
+        case .tinted:
+            layer?.backgroundColor = tint.withAlphaComponent(0.14).cgColor
+            layer?.borderColor = tint.withAlphaComponent(0.28).cgColor
+        }
+        layer?.borderWidth = 1
+    }
+}
+
 public struct ModUINode: Hashable, Sendable {
     public enum Axis: String, Hashable, Sendable { case horizontal, vertical }
     public enum LabelStyle: String, Hashable, Sendable { case body, title, secondary, monospaced }
@@ -58,6 +131,8 @@ public struct ModUINode: Hashable, Sendable {
         case image(source: BrowserImageSource)
         case progress(value: Double?, caption: String?)
         case separator
+        case symbol(name: String)
+        case spacer
     }
 
     public var id: String
@@ -65,6 +140,7 @@ public struct ModUINode: Hashable, Sendable {
     public var accessibilityLabel: String?
     public var accessibilityHint: String?
     public var isEnabled: Bool
+    public var appearance = ModUIAppearance()
 
     public init(id: String, kind: Kind, accessibilityLabel: String? = nil, accessibilityHint: String? = nil, isEnabled: Bool = true) {
         self.id = id
@@ -140,7 +216,7 @@ public struct ModUINode: Hashable, Sendable {
         case .image: if label.isEmpty { issues.append("\(id): image needs an accessibility label") }
         case .progress: if label.isEmpty { issues.append("\(id): progress needs an accessibility label") }
         case .stack(_, _, let c): for n in c { issues += n.accessibilityIssues() }
-        case .label, .separator: break
+        case .label, .separator, .symbol, .spacer: break
         }
         return issues
     }
@@ -255,7 +331,7 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
             switch n.kind {
             case .stack(_, _, let children): children.forEach(walk)
             case .button, .textField, .toggle, .popup, .list, .table: if n.isEnabled { out.append(n.id) }
-            case .label, .image, .progress, .separator: break
+            case .label, .image, .progress, .separator, .symbol, .spacer: break
             }
         }
         walk(n)
@@ -279,19 +355,57 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
         let view: NSView
         switch n.kind {
         case .stack(let axis, let spacing, let children):
-            let stack = NSStackView(views: children.map(build))
+            let built = children.map(build)
+            let stack = NSStackView(views: built)
             stack.orientation = axis == .horizontal ? .horizontal : .vertical
-            stack.alignment = axis == .horizontal ? .centerY : .leading
-            stack.spacing = CGFloat(spacing ?? 8)
-            stack.distribution = .fill
+            if axis == .horizontal {
+                stack.alignment = .centerY
+            } else {
+                switch n.appearance.alignment {
+                case .center: stack.alignment = .centerX
+                case .trailing: stack.alignment = .trailing
+                case .leading, nil: stack.alignment = .leading
+                }
+            }
+            stack.spacing = CGFloat(min(max(n.appearance.spacing ?? spacing ?? 8, 0), 64))
+            stack.distribution = axis == .horizontal && children.count > 1 && children.allSatisfy({ $0.appearance.surface != nil }) ? .fillEqually : .fill
             stack.setAccessibilityRole(.group)
-            view = stack
+            if axis == .vertical {
+                for (child, childView) in zip(children, built) where child.fillsWidth {
+                    let fill = childView.widthAnchor.constraint(equalTo: stack.widthAnchor)
+                    fill.priority = .defaultHigh
+                    fill.isActive = true
+                }
+            }
+            let inset = CGFloat(min(max(n.appearance.padding ?? (n.appearance.surface == nil ? 0 : 12), 0), 64))
+            if let surface = n.appearance.surface {
+                let card = ModUICardView()
+                card.surface = surface
+                card.role = n.appearance.color
+                stack.translatesAutoresizingMaskIntoConstraints = false
+                card.addSubview(stack)
+                NSLayoutConstraint.activate([
+                    stack.topAnchor.constraint(equalTo: card.topAnchor, constant: inset),
+                    stack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: inset),
+                    stack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -inset),
+                    stack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -inset),
+                ])
+                view = card
+            } else {
+                stack.edgeInsets = NSEdgeInsets(top: inset, left: inset, bottom: inset, right: inset)
+                view = stack
+            }
         case .label(let text, let style):
             let label = NSTextField(wrappingLabelWithString: text)
             label.isSelectable = true
             label.lineBreakMode = .byWordWrapping
             label.identifier = NSUserInterfaceItemIdentifier("label:\(style.rawValue)")
             label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+            switch n.appearance.alignment {
+            case .center: label.alignment = .center
+            case .trailing: label.alignment = .right
+            case .leading, nil: break
+            }
             view = label
         case .button(let title, let symbol):
             let button = NSButton(title: title, target: self, action: #selector(buttonPressed(_:)))
@@ -368,6 +482,22 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
             let sep = NSBox()
             sep.boxType = .separator
             view = sep
+        case .symbol(let name):
+            let iv = NSImageView()
+            let size = CGFloat(min(max(n.appearance.size ?? 16, 8), 96))
+            let config = NSImage.SymbolConfiguration(pointSize: size, weight: n.appearance.fontWeight ?? .regular)
+            iv.image = NSImage(systemSymbolName: name, accessibilityDescription: n.accessibilityLabel)?.withSymbolConfiguration(config)
+            iv.imageScaling = .scaleNone
+            iv.setContentHuggingPriority(.required, for: .horizontal)
+            iv.setContentHuggingPriority(.required, for: .vertical)
+            view = iv
+        case .spacer:
+            let gap = NSView()
+            gap.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+            gap.setContentHuggingPriority(NSLayoutConstraint.Priority(1), for: .vertical)
+            gap.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(1), for: .horizontal)
+            gap.setContentCompressionResistancePriority(NSLayoutConstraint.Priority(1), for: .vertical)
+            view = gap
         }
         applyAccessibility(view, n)
         if let control = view as? NSControl { control.isEnabled = n.isEnabled }
@@ -437,8 +567,10 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
             view.setAccessibilityLabel(label ?? (title.isEmpty ? n.id : title))
         case .popup:
             view.setAccessibilityLabel(label ?? n.id)
-        case .image:
+        case .image, .symbol:
             if let label { view.setAccessibilityLabel(label); view.setAccessibilityElement(true) } else { view.setAccessibilityElement(false) }
+        case .spacer:
+            view.setAccessibilityElement(false)
         case .list, .table, .progress:
             break
         }
@@ -458,6 +590,17 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
                 case .secondary: tf.font = theme.uiFont; tf.textColor = theme.secondaryTextColor
                 case .monospaced: tf.font = NSFont.monospacedSystemFont(ofSize: theme.uiFont.pointSize, weight: .regular); tf.textColor = theme.textColor
                 }
+                let look = n.appearance
+                if look.size != nil || look.weight != nil, let base = tf.font {
+                    let size = CGFloat(min(max(look.size ?? Double(base.pointSize), 8), 96))
+                    let weight = look.fontWeight ?? (style == .title ? .semibold : .regular)
+                    tf.font = style == .monospaced ? NSFont.monospacedSystemFont(ofSize: size, weight: weight) : NSFont.systemFont(ofSize: size, weight: weight)
+                }
+                if let role = look.color { tf.textColor = look.resolvedColor(role, theme: theme) }
+            case .symbol:
+                (view as? NSImageView)?.contentTintColor = n.appearance.resolvedColor(n.appearance.color ?? .primary, theme: theme)
+            case .stack:
+                (view as? ModUICardView)?.apply(theme: theme, appearance: n.appearance)
             case .button(_, let symbol):
                 (view as? NSButton)?.font = theme.uiFont
                 if symbol != nil { (view as? NSButton)?.contentTintColor = theme.accentColor }
@@ -486,7 +629,7 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
     }
 
     private func tintCaptions(_ view: NSView, _ theme: Theme) {
-        if let tf = view as? NSTextField, tf.identifier?.rawValue == "label:secondary" {
+        if let tf = view as? NSTextField, tf.identifier?.rawValue == "label:secondary", controls.values.contains(where: { $0 === tf }) == false {
             tf.font = theme.uiFont
             tf.textColor = theme.secondaryTextColor
         }
@@ -594,6 +737,17 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
 }
 
 extension ModUINode {
+    var fillsWidth: Bool {
+        switch kind {
+        case .stack(let axis, _, let children):
+            if appearance.surface != nil || appearance.alignment != nil { return true }
+            return axis == .horizontal && children.contains { if case .spacer = $0.kind { return true }; return $0.appearance.surface != nil }
+        case .label: return appearance.alignment != nil
+        case .separator, .progress, .list, .table, .textField, .popup: return true
+        case .button, .toggle, .image, .symbol, .spacer: return false
+        }
+    }
+
     func find(_ id: String) -> ModUINode? {
         if self.id == id { return self }
         for c in children { if let f = c.find(id) { return f } }

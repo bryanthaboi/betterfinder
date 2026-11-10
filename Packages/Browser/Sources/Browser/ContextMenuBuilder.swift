@@ -22,6 +22,14 @@ enum ContextMenuBuilder {
             item.target = target ?? pane
             menu.addItem(item)
         }
+        func addInfo() {
+            add("Get Info", #selector(BrowserPaneController.getInfo(_:)), "i")
+            let mini = NSMenuItem(title: "Mini Info", action: #selector(BrowserPaneController.miniInfo(_:)), keyEquivalent: "i")
+            mini.keyEquivalentModifierMask = [.command, .option]
+            mini.isAlternate = true
+            mini.target = pane
+            menu.addItem(mini)
+        }
         let dual = pane.windowController?.isDualPane == true
         let trash = pane.isShowingTrash
         if sel.isEmpty {
@@ -29,15 +37,12 @@ enum ContextMenuBuilder {
                 add("Recently Trashed…", #selector(BrowserPaneController.showRecentlyTrashed(_:)))
                 menu.addItem(.separator())
             }
+            menu.addItem(newMenuItem(pane))
+            menu.addItem(.separator())
             if pane.destinationFolder != nil {
-                add("New Folder", #selector(BrowserPaneController.newFolder(_:)), "n", [.command, .shift])
-                let nf = NSMenuItem(title: "New File", action: nil, keyEquivalent: "")
-                nf.submenu = newFileMenu(pane)
-                menu.addItem(nf)
-                menu.addItem(.separator())
                 add("Paste", #selector(BrowserPaneController.paste(_:)), "v")
                 menu.addItem(.separator())
-                add("Get Info", #selector(BrowserPaneController.getInfo(_:)), "i")
+                addInfo()
                 add("Open in Terminal", #selector(BrowserPaneController.openInTerminal(_:)))
                 add("Copy Path", #selector(BrowserPaneController.copyPath(_:)), "c", [.command, .option])
                 add("Add to Sidebar", #selector(BrowserPaneController.revealInSidebarFavorites(_:)), "t", [.command, .control])
@@ -75,10 +80,12 @@ enum ContextMenuBuilder {
         menu.addItem(.separator())
         add("Move to Trash", #selector(BrowserPaneController.moveToTrash(_:)), "\u{8}")
         menu.addItem(.separator())
-        add("Get Info", #selector(BrowserPaneController.getInfo(_:)), "i")
+        addInfo()
         if sel.count == 1 { add("Rename", #selector(BrowserPaneController.renameSelection(_:))) }
         add("Duplicate", #selector(BrowserPaneController.duplicate(_:)), "d")
         add("Quick Look", #selector(BrowserPaneController.toggleQuickLook(_:)), "y")
+        menu.addItem(.separator())
+        menu.addItem(newMenuItem(pane))
         if pane.destinationFolder != nil {
             add("New Folder with Selection", #selector(BrowserPaneController.newFolderWithSelection(_:)), "n", [.command, .control])
         }
@@ -99,16 +106,28 @@ enum ContextMenuBuilder {
         tags.submenu = tagsMenu(pane)
         menu.addItem(tags)
         menu.addItem(.separator())
+        add("Open in Terminal", #selector(BrowserPaneController.openInTerminal(_:)))
         if sel.count == 1, sel[0].isBrowsableFolder {
-            add("Open in Terminal", #selector(BrowserPaneController.openInTerminal(_:)))
             add("Add to Sidebar", #selector(BrowserPaneController.revealInSidebarFavorites(_:)), "t", [.command, .control])
         }
         return menu
     }
 
-    static func newFileMenu(_ pane: BrowserPaneController) -> NSMenu {
-        let m = NSMenu()
+    static func newMenuItem(_ pane: BrowserPaneController) -> NSMenuItem {
+        let item = NSMenuItem(title: "New", action: nil, keyEquivalent: "")
+        item.submenu = newMenu(pane)
+        return item
+    }
+
+    static func newMenu(_ pane: BrowserPaneController) -> NSMenu {
+        let m = NSMenu(title: "New")
+        let folder = NSMenuItem(title: "Folder", action: #selector(BrowserPaneController.newFolder(_:)), keyEquivalent: "n")
+        folder.keyEquivalentModifierMask = [.command, .shift]
+        folder.target = pane
+        m.addItem(folder)
+        m.addItem(.separator())
         for (i, t) in FileTemplate.all.enumerated() {
+            if i == FileTemplate.primary.count { m.addItem(.separator()) }
             let item = NSMenuItem(title: t.title, action: #selector(BrowserPaneController.newFile(_:)), keyEquivalent: i == 0 ? "n" : "")
             if i == 0 { item.keyEquivalentModifierMask = [.command, .option] }
             item.representedObject = t

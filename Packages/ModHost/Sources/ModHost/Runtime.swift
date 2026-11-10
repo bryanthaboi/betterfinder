@@ -507,12 +507,12 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
 
 
     @discardableResult
-    public func install(from source: URL, developer: Bool = false) async throws -> ModPreflightReport {
+    public func install(from source: URL, developer: Bool = false, approvedPermissionIDs: Set<String>? = nil) async throws -> ModPreflightReport {
         if developer, !options.developerMode { throw ModRuntimeError.developerModeRequired }
-        return try await lifecycle.run { try await self.installLocked(from: source, developer: developer) }
+        return try await lifecycle.run { try await self.installLocked(from: source, developer: developer, approvedPermissionIDs: developer ? approvedPermissionIDs : nil) }
     }
 
-    func installLocked(from source: URL, developer: Bool) async throws -> ModPreflightReport {
+    func installLocked(from source: URL, developer: Bool, approvedPermissionIDs: Set<String>? = nil) async throws -> ModPreflightReport {
         let staged = try store.stage(source)
         defer { store.discardStaging(staged) }
         let package = ModPackage.load(directory: staged)
@@ -531,6 +531,10 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
             existing.lastError = nil
             try store.save(existing)
             _ = try grants.reconcile(manifest)
+            if let approvedPermissionIDs {
+                let declared = Set(manifest.permissions.map { ModPermissionID.make($0) })
+                _ = try grants.approve(manifest, permissionIDs: approvedPermissionIDs.intersection(declared))
+            }
             if wasActive {
                 do { try await swapLocked(id: manifest.id, reason: "update") } catch {
                     if let prev = existing.previous {

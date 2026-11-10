@@ -276,6 +276,18 @@ final class PathBarView: NSView, NSTextFieldDelegate, ThemedSurface {
         let url: URL?
         let location: BrowserLocation?
         let image: NSImage?
+        var redacted: String? = nil
+    }
+
+    private func folderCrumb(_ u: URL, isRoot: Bool, image: NSImage?) -> CrumbEntry {
+        if HomeLabel.isRedacted(u) {
+            return CrumbEntry(title: HomeNameDisplay.redactedAccessibilityName, url: u, location: .folder(u), image: image, redacted: FileManager.default.displayName(atPath: u.path))
+        }
+        return CrumbEntry(title: isRoot ? BrowserLocation.folder(u).displayName : u.displayTitle, url: u, location: .folder(u), image: image)
+    }
+
+    func refreshDisplay() {
+        rebuildCrumbs()
     }
 
     private var crumbEntries: [CrumbEntry] = []
@@ -292,8 +304,7 @@ final class PathBarView: NSView, NSTextFieldDelegate, ThemedSurface {
             case .folder(let url):
                 let parts = chain(for: url)
                 for (i, u) in parts.enumerated() {
-                    let name = i == 0 ? BrowserLocation.folder(u).displayName : FileManager.default.displayName(atPath: u.path)
-                    entries.append(CrumbEntry(title: name, url: u, location: .folder(u), image: i == 0 || i == parts.count - 1 ? IconCache.shared.fileIcon(u, size: 14) : nil))
+                    entries.append(folderCrumb(u, isRoot: i == 0, image: i == 0 || i == parts.count - 1 ? IconCache.shared.fileIcon(u, size: 14) : nil))
                 }
             case .search(let scope, let q):
                 let parts = scope.path == "/" ? [] : chain(for: scope)
@@ -301,7 +312,7 @@ final class PathBarView: NSView, NSTextFieldDelegate, ThemedSurface {
                     entries.append(CrumbEntry(title: BrowserLocation.computer.displayName, url: nil, location: .computer, image: NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil)))
                 }
                 for (i, u) in parts.enumerated() {
-                    entries.append(CrumbEntry(title: i == 0 ? BrowserLocation.folder(u).displayName : FileManager.default.displayName(atPath: u.path), url: u, location: .folder(u), image: nil))
+                    entries.append(folderCrumb(u, isRoot: i == 0, image: nil))
                 }
                 entries.append(CrumbEntry(title: "“\(q)”", url: nil, location: nil, image: NSImage(systemSymbolName: "magnifyingglass", accessibilityDescription: "Search")))
             case .computer:
@@ -337,7 +348,11 @@ final class PathBarView: NSView, NSTextFieldDelegate, ThemedSurface {
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
         para.tighteningFactorForTruncation = 0
-        b.attributedTitle = NSAttributedString(string: e.title, attributes: [.foregroundColor: color, .font: b.font!, .paragraphStyle: para])
+        if let hidden = e.redacted {
+            b.attributedTitle = RedactedText.attributed(hidden, font: b.font!, color: color)
+        } else {
+            b.attributedTitle = NSAttributedString(string: e.title, attributes: [.foregroundColor: color, .font: b.font!, .paragraphStyle: para])
+        }
         b.target = self
         b.action = #selector(crumbClicked(_:))
         b.bar = self
@@ -424,7 +439,7 @@ final class PathBarView: NSView, NSTextFieldDelegate, ThemedSurface {
     func collapsedAncestorsMenu() -> NSMenu {
         let menu = NSMenu()
         for u in collapsedAncestors.reversed() {
-            let item = NSMenuItem(title: u.path == "/" ? BrowserLocation.folder(u).displayName : FileManager.default.displayName(atPath: u.path), action: #selector(collapsedAncestorChosen(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: u.path == "/" ? BrowserLocation.folder(u).displayName : u.displayTitle, action: #selector(collapsedAncestorChosen(_:)), keyEquivalent: "")
             item.image = IconCache.shared.fileIcon(u, size: 16)
             item.representedObject = u
             item.target = self
@@ -475,7 +490,7 @@ final class PathBarView: NSView, NSTextFieldDelegate, ThemedSurface {
         guard let url = crumb.url else { return menu }
         var cur: URL? = url
         while let u = cur {
-            let item = NSMenuItem(title: u.path == "/" ? BrowserLocation.folder(u).displayName : FileManager.default.displayName(atPath: u.path), action: #selector(ancestorChosen(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: u.path == "/" ? BrowserLocation.folder(u).displayName : u.displayTitle, action: #selector(ancestorChosen(_:)), keyEquivalent: "")
             item.image = IconCache.shared.fileIcon(u, size: 16)
             item.representedObject = u
             item.target = self

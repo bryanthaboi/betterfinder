@@ -27,6 +27,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     private let actionMenu = NSMenu()
 
     var onClose: (() -> Void)?
+    var onBecomeActive: (() -> Void)?
     var isDualPane: Bool { panes.count > 1 }
 
     private enum ToolbarID {
@@ -165,8 +166,9 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         guard pane === activePane else { return }
         let dest = pane.destination
         window?.title = dest.displayName
-        window?.representedURL = dest.url
-        if let url = dest.url {
+        let hidesProxy = HomeLabel.hidesProxy(for: dest.url)
+        window?.representedURL = hidesProxy ? nil : dest.url
+        if let url = dest.url, !hidesProxy {
             window?.standardWindowButton(.documentIconButton)?.image = IconCache.shared.fileIcon(url, size: 16)
         }
         window?.tab.title = dest.displayName
@@ -658,6 +660,9 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
 
     @objc public func newFolder(_ sender: Any?) { activePane.newFolder(sender) }
     @objc public func newFile(_ sender: Any?) { activePane.newFile(sender) }
+    @objc public func newTextDocument(_ sender: Any?) { activePane.newTextDocument(sender) }
+    @objc public func newMarkdownDocument(_ sender: Any?) { activePane.newMarkdownDocument(sender) }
+    @objc public func newEmptyFile(_ sender: Any?) { activePane.newEmptyFile(sender) }
 
     @objc public func asList(_ sender: Any?) { setViewMode(.list) }
     @objc public func asColumns(_ sender: Any?) { setViewMode(.column) }
@@ -684,6 +689,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
 
     @objc public func toggleHiddenFiles(_ sender: Any?) { activePane.toggleHiddenFiles(sender) }
     @objc public func getInfo(_ sender: Any?) { activePane.getInfo(sender) }
+    @objc public func miniInfo(_ sender: Any?) { activePane.miniInfo(sender) }
     @objc public func copyPath(_ sender: Any?) { activePane.copyPath(sender) }
     @objc public func openInTerminal(_ sender: Any?) { activePane.openInTerminal(sender) }
     @objc public func copyToOtherPane(_ sender: Any?) { activePane.copyToOtherPane(sender) }
@@ -735,7 +741,8 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         case #selector(goBack(_:)): return !activePane.backStack.isEmpty
         case #selector(goForward(_:)): return !activePane.forwardStack.isEmpty
         case #selector(newFolder(_:)): return activePane.canCreateFolder
-        case #selector(newFile(_:)): return activePane.canCreateFile
+        case #selector(newFile(_:)), #selector(newTextDocument(_:)), #selector(newMarkdownDocument(_:)), #selector(newEmptyFile(_:)): return activePane.canCreateFile
+        case #selector(openInTerminal(_:)): return activePane.terminalTarget != nil
         case #selector(switchPane(_:)): return isDualPane
         case #selector(copyToOtherPane(_:)), #selector(moveToOtherPane(_:)): return isDualPane && activePane.canSendToOtherPane(move: item.action == #selector(moveToOtherPane(_:)))
         case #selector(focusPathBar(_:)), #selector(goToFolder(_:)): return activePane.providedLocation == nil
@@ -759,6 +766,11 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
 
     public func windowDidBecomeKey(_ notification: Notification) {
         updateNavControl()
+        onBecomeActive?()
+    }
+
+    public func windowDidBecomeMain(_ notification: Notification) {
+        onBecomeActive?()
     }
 
     public func windowWillClose(_ notification: Notification) {

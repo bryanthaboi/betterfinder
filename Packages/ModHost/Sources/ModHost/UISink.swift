@@ -33,8 +33,11 @@ public struct ModUIListItem: Hashable, Sendable {
 }
 
 public struct ModUINode: Hashable, Sendable {
-    public enum Kind: String, Sendable, CaseIterable { case vstack, hstack, text, markdown, button, list, progress, divider, textField, select }
+    public enum Kind: String, Sendable, CaseIterable { case vstack, hstack, text, markdown, button, list, progress, divider, textField, select, icon, spacer, card }
     public enum TextStyle: String, Sendable, CaseIterable { case body, title, secondary, monospaced }
+    public enum ColorRole: String, Sendable, CaseIterable { case primary, secondary, accent, success, warning, danger }
+    public enum Weight: String, Sendable, CaseIterable { case regular, medium, semibold, bold }
+    public enum Alignment: String, Sendable, CaseIterable { case leading, center, trailing }
     public var kind: Kind
     public var id: String?
     public var text: String?
@@ -47,6 +50,13 @@ public struct ModUINode: Hashable, Sendable {
     public var style: TextStyle?
     public var symbolName: String?
     public var selectedID: String?
+    public var color: ColorRole?
+    public var size: Double?
+    public var weight: Weight?
+    public var alignment: Alignment?
+    public var spacing: Double?
+    public var padding: Double?
+    public var tinted = false
 
     public init(
         kind: Kind, id: String? = nil, text: String? = nil, accessibilityLabel: String? = nil, command: ModCommandReference? = nil,
@@ -72,13 +82,21 @@ public struct ModUINode: Hashable, Sendable {
             guard let id = i["id"]?.stringValue, let title = i["title"]?.stringValue else { return nil }
             return ModUIListItem(id: id, title: title, subtitle: i["subtitle"]?.stringValue)
         }
-        return ModUINode(
+        var node = ModUINode(
             kind: kind, id: o["id"]?.stringValue, text: o["text"]?.stringValue, accessibilityLabel: normalizedLabel(o["label"]?.stringValue),
             command: o["command"]?.stringValue.map { ModCommandReference(raw: $0, owner: owner) }, value: o["value"]?.numberValue.flatMap { $0.isFinite ? $0 : nil },
             children: children, items: items, placeholder: normalizedLabel(o["placeholder"]?.stringValue).map { String($0.prefix(256)) },
             style: o["style"]?.stringValue.flatMap(TextStyle.init(rawValue:)), symbolName: o["icon"]?.stringValue.flatMap(symbol),
             selectedID: o["selected"]?.stringValue
         )
+        node.color = o["color"]?.stringValue.flatMap(ColorRole.init(rawValue:))
+        node.size = o["size"]?.numberValue.flatMap { $0.isFinite ? min(max($0, 8), 96) : nil }
+        node.weight = o["weight"]?.stringValue.flatMap(Weight.init(rawValue:))
+        node.alignment = o["align"]?.stringValue.flatMap(Alignment.init(rawValue:))
+        node.spacing = o["spacing"]?.numberValue.flatMap { $0.isFinite ? min(max($0, 0), 64) : nil }
+        node.padding = o["padding"]?.numberValue.flatMap { $0.isFinite ? min(max($0, 0), 64) : nil }
+        node.tinted = o["tinted"]?.boolValue ?? false
+        return node
     }
 
     static func symbol(_ raw: String) -> String? {
@@ -303,11 +321,12 @@ public enum ModUIUpdate: Sendable, Hashable {
     case refreshLocation(location: ModContributionID)
     case refreshPreview(provider: ModContributionID, item: URL)
     case invalidatePreviews(provider: ModContributionID)
+    case showPanel(panel: ModContributionID)
 
     var stagingOwner: String? {
         switch self {
         case .panelContent(let id, _), .statusText(let id, _), .toolbarItemState(let id, _, _), .commandEnabled(let id, _): return id.modId
-        case .notify, .openLocation, .refreshLocation, .refreshPreview, .invalidatePreviews: return nil
+        case .notify, .openLocation, .refreshLocation, .refreshPreview, .invalidatePreviews, .showPanel: return nil
         }
     }
 }

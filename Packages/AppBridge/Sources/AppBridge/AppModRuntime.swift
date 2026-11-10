@@ -272,13 +272,13 @@ public final class AppModRuntime {
     }
 
     @discardableResult
-    public func install(from source: URL, developer: Bool = false, approver: PermissionApprover? = nil, rootChooser: RootChooser? = nil) async -> ModInstallOutcome {
+    public func install(from source: URL, developer: Bool = false, approver: PermissionApprover? = nil, rootChooser: RootChooser? = nil, preapproved: Set<String>? = nil) async -> ModInstallOutcome {
         let approver = approver ?? Self.interactiveApprover
         let rootChooser = rootChooser ?? Self.interactiveRootChooser
         let report: ModPreflightReport
         do {
             let controller = controller
-            report = try await gated { try await controller.install(from: source, developer: developer) }
+            report = try await gated { try await controller.install(from: source, developer: developer, approvedPermissionIDs: preapproved) }
         } catch {
             return ModInstallOutcome(id: nil, installed: false, enabled: false, cancelled: false, receipt: nil, error: error.localizedDescription)
         }
@@ -391,8 +391,8 @@ public final class AppModRuntime {
     }
 
     @discardableResult
-    public func loadUnpacked(_ folder: URL, approver: PermissionApprover? = nil, rootChooser: RootChooser? = nil) async -> ModInstallOutcome {
-        let outcome = await install(from: folder, developer: true, approver: approver, rootChooser: rootChooser)
+    public func loadUnpacked(_ folder: URL, approver: PermissionApprover? = nil, rootChooser: RootChooser? = nil, preapproved: Set<String>? = nil) async -> ModInstallOutcome {
+        let outcome = await install(from: folder, developer: true, approver: approver, rootChooser: rootChooser, preapproved: preapproved)
         if let id = outcome.id, outcome.installed {
             setDevFolder(id, folder)
             watch(id: id, folder: folder)

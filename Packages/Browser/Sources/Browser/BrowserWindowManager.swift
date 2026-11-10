@@ -1,11 +1,45 @@
 import AppKit
 import Integration
 
+public enum BrowserOpenIntent: Sendable {
+    case explicitNewWindow
+    case request
+}
+
+public enum BrowserOpenRoute: Sendable, Equatable {
+    case newWindow
+    case tabInActiveWindow
+}
+
 @MainActor
 public final class BrowserWindowManager {
     public static let shared = BrowserWindowManager()
 
     private(set) var controllers: [BrowserWindowController] = []
+    private weak var lastActive: BrowserWindowController?
+
+    nonisolated public static func route(intent: BrowserOpenIntent, tabsPreferred: Bool, hasWindow: Bool) -> BrowserOpenRoute {
+        guard intent == .request, tabsPreferred, hasWindow else { return .newWindow }
+        return .tabInActiveWindow
+    }
+
+    var activeController: BrowserWindowController? {
+        if let key = NSApp.keyWindow?.windowController as? BrowserWindowController, controllers.contains(where: { $0 === key }) { return key }
+        if let lastActive, controllers.contains(where: { $0 === lastActive }) { return lastActive }
+        return controllers.last
+    }
+
+    @discardableResult
+    public func open(at location: BrowserLocation, select: [URL] = [], intent: BrowserOpenIntent = .request) -> BrowserWindowController {
+        let host = activeController
+        switch Self.route(intent: intent, tabsPreferred: BrowserDefaults.openFoldersInTabs, hasWindow: host != nil) {
+        case .newWindow:
+            return openWindow(at: location, select: select)
+        case .tabInActiveWindow:
+            if host?.window?.isMiniaturized == true { host?.window?.deminiaturize(nil) }
+            return openTab(at: location, select: select, nextTo: host)
+        }
+    }
 
     public var registries: BrowserRegistries
 
@@ -20,6 +54,9 @@ public final class BrowserWindowManager {
         controllers.append(wc)
         wc.onClose = { [weak self, weak wc] in
             self?.controllers.removeAll { $0 === wc }
+        }
+        wc.onBecomeActive = { [weak self, weak wc] in
+            self?.lastActive = wc
         }
         return wc
     }
@@ -81,7 +118,7 @@ public final class BrowserWindowManager {
             if let w = existing(showing: .folder(url)) {
                 w.window?.makeKeyAndOrderFront(nil)
             } else {
-                openWindow(at: .folder(url.standardizedFileURL))
+                open(at: .folder(url.standardizedFileURL))
             }
         case .reveal(let url):
             let parent = url.standardizedFileURL.deletingLastPathComponent()
@@ -89,7 +126,7 @@ public final class BrowserWindowManager {
                 w.window?.makeKeyAndOrderFront(nil)
                 w.select([url.standardizedFileURL])
             } else {
-                openWindow(at: .folder(parent), select: [url.standardizedFileURL])
+                open(at: .folder(parent), select: [url.standardizedFileURL])
             }
         }
         NSApp.activate(ignoringOtherApps: true)
@@ -106,7 +143,7 @@ public final class BrowserWindowManager {
                 w.window?.makeKeyAndOrderFront(nil)
                 w.select(items.map(\.standardizedFileURL))
             } else {
-                openWindow(at: .folder(parent), select: items.map(\.standardizedFileURL))
+                open(at: .folder(parent), select: items.map(\.standardizedFileURL))
             }
         }
         NSApp.activate(ignoringOtherApps: true)

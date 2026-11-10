@@ -47,7 +47,25 @@ public enum ModUIConversion {
 
     private static func nonBlank(_ s: String?) -> String? { ModHost.ModUINode.normalizedLabel(s) }
 
+    private static func appearance(_ n: ModHost.ModUINode) -> ModUIAppearance {
+        var look = ModUIAppearance()
+        look.color = n.color.flatMap { ModUIAppearance.Role(rawValue: $0.rawValue) }
+        look.size = n.size
+        look.weight = n.weight.flatMap { ModUIAppearance.Weight(rawValue: $0.rawValue) }
+        look.alignment = n.alignment.flatMap { ModUIAppearance.Alignment(rawValue: $0.rawValue) }
+        look.spacing = n.spacing
+        look.padding = n.padding
+        if n.kind == .card { look.surface = n.tinted ? .tinted : .card }
+        return look
+    }
+
     private static func convert(_ n: ModHost.ModUINode, path: String, state: inout State, resolve: (ModCommandReference) -> String) -> Browser.ModUINode {
+        var out = convertBare(n, path: path, state: &state, resolve: resolve)
+        out.appearance = appearance(n)
+        return out
+    }
+
+    private static func convertBare(_ n: ModHost.ModUINode, path: String, state: inout State, resolve: (ModCommandReference) -> String) -> Browser.ModUINode {
         let id: String
         if let author = n.id, !author.isEmpty {
             if state.authorIDs.insert(author).inserted {
@@ -61,9 +79,13 @@ public enum ModUIConversion {
         }
         let label = nonBlank(n.accessibilityLabel)
         switch n.kind {
-        case .vstack, .hstack:
+        case .vstack, .hstack, .card:
             let children = n.children.enumerated().map { convert($1, path: "\(path).\($0)", state: &state, resolve: resolve) }
-            return Browser.ModUINode(id: id, kind: .stack(axis: n.kind == .vstack ? .vertical : .horizontal, spacing: nil, children: children), accessibilityLabel: label)
+            return Browser.ModUINode(id: id, kind: .stack(axis: n.kind == .hstack ? .horizontal : .vertical, spacing: nil, children: children), accessibilityLabel: label)
+        case .icon:
+            return Browser.ModUINode(id: id, kind: .symbol(name: n.symbolName ?? "questionmark.square.dashed"), accessibilityLabel: label)
+        case .spacer:
+            return Browser.ModUINode(id: id, kind: .spacer)
         case .text:
             let style: Browser.ModUINode.LabelStyle
             switch n.style {
