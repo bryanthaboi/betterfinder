@@ -9,10 +9,10 @@ TEAM="${TEAM_ID:-2239U5J89G}"
 CI_DIR="${POKEMON_CI_DIR:-$HOME/.config/pokemon-ci}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 OUT="$ROOT/dist"
-DD="$ROOT/build/ReleaseData"
+DD="${DERIVED_DATA:-$ROOT/build/ReleaseData}"
 
 cd "$ROOT"
-rm -rf "$OUT" && mkdir -p "$OUT" "$ROOT/build"
+rm -rf "$OUT" "$DD"/Build/Products/Release/*.app "$DD"/Build/Products/Release/*.xpc "$DD"/Build/Products/Release/*.bundle && mkdir -p "$OUT" "$ROOT/build"
 xcodegen generate
 
 xcodebuild -project BetterFinder.xcodeproj -scheme BetterFinder -configuration Release \

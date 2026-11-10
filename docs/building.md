@@ -14,6 +14,8 @@ Each package also builds and tests on its own:
 for p in FSCore FileOps Theming Integration Settings Browser Updates ModKit ModScriptTS ModValidation ModHost ModIndex MCPServer AppBridge Remote; do swift test --package-path Packages/$p; done
 ```
 
+`scripts/test-packages.sh` runs them all, four packages at a time (`TEST_JOBS` changes that). Pass package names to run a subset. Set `SPM_SCRATCH_ROOT` to keep the build products outside the package folders.
+
 Debug builds don't register the size indexer helper, so folder sizes come from the in-process fallback walker. To test the real LaunchAgent, install the app to `/Applications` or set `BF_REGISTER_INDEXER=1`.
 
 ## Release build
@@ -27,6 +29,8 @@ Debug builds don't register the size indexer helper, so folder sizes come from t
 
 Set `NOTARIZE=0` to skip notarization.
 
+Set `DERIVED_DATA` to build in a different DerivedData folder. Compiled intermediates there are reused between runs; the app bundle is always rebuilt from them.
+
 The release script reads signing material from `$POKEMON_CI_DIR` (default `~/.config/pokemon-ci`):
 - `signing.p12`
 - `signing.pass`
@@ -34,9 +38,9 @@ The release script reads signing material from `$POKEMON_CI_DIR` (default `~/.co
 
 ## CI
 
-Pull requests run on GitHub-hosted `macos-15` with read-only repository access and no signing material. Releases run on the self-hosted macOS runner.
+Pull requests run on GitHub-hosted `macos-15` with read-only repository access and no signing material. Releases run on the self-hosted macOS runner. The runner keeps SwiftPM and Xcode build products in `~/Library/Caches/betterfinder-ci` between runs, so only changed code is recompiled. `v*` tags and manual runs with `clean` checked delete that folder first and build from scratch.
 
 | Workflow | When it runs | What it does |
 |---|---|---|
-| `ci.yml` | Pull requests | Runs every package's tests, then builds the Debug app |
-| `release.yml` | Every push to main, `v*` tags, or a manual run | Runs every package's tests, imports a temporary signing keychain, runs `scripts/release.sh` (sign, notarize, staple), and publishes a GitHub release `v0.1.<run>` |
+| `ci.yml` | Pull requests | Runs every package's tests in parallel, then builds the Debug app |
+| `release.yml` | Every push to main, `v*` tags, or a manual run | Runs every package's tests in parallel, imports a temporary signing keychain, runs `scripts/release.sh` (sign, notarize, staple), and publishes a GitHub release `v0.1.<run>` |

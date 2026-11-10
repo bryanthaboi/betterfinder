@@ -9,6 +9,10 @@ on:
       version:
         description: version (e.g. 0.1.0)
         required: false
+      clean:
+        description: discard cached build products first
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -43,15 +47,19 @@ jobs:
           [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::invalid version"; exit 1; }
           echo "version=$v" >> "$GITHUB_OUTPUT"
 
-      - name: tests
+      - name: build cache
+        env:
+          CLEAN: ${{ inputs.clean }}
         run: |
           set -euo pipefail
-          for p in Packages/*/; do
-            p="$(basename "$p")"
-            echo "::group::$p"
-            swift test --package-path "Packages/$p" --scratch-path "$RUNNER_TEMP/spm-$p"
-            echo "::endgroup::"
-          done
+          cache="$HOME/Library/Caches/betterfinder-ci"
+          if [ "$CLEAN" = "true" ] || [[ "$GITHUB_REF" == refs/tags/v* ]]; then rm -rf "$cache"; fi
+          mkdir -p "$cache"
+          echo "SPM_SCRATCH_ROOT=$cache/spm" >> "$GITHUB_ENV"
+          echo "DERIVED_DATA=$cache/ReleaseData" >> "$GITHUB_ENV"
+
+      - name: tests
+        run: scripts/test-packages.sh
 
       - name: import signing keychain
         uses: ./.github/actions/mac-signing-keychain

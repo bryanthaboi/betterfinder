@@ -25,14 +25,9 @@ jobs:
         run: brew install xcodegen
 
       - name: package tests
-        run: |
-          set -euo pipefail
-          for p in Packages/*/; do
-            p="$(basename "$p")"
-            echo "::group::$p"
-            swift test --package-path "Packages/$p" --scratch-path "$RUNNER_TEMP/spm-$p"
-            echo "::endgroup::"
-          done
+        env:
+          TEST_JOBS: "2"
+        run: SPM_SCRATCH_ROOT="$RUNNER_TEMP/spm" scripts/test-packages.sh
 
       - name: build app
         run: |
