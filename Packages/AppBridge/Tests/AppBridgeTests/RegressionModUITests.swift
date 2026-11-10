@@ -27,6 +27,52 @@ private final class FixedPreview: ModPreviewProviding, @unchecked Sendable {
 final class RegressionModUITests: XCTestCase {
     private func cell(_ n: Double, _ type: ColumnValueType) -> ColumnValue { ModColumnAdapter.value(ModCellValue(number: n), type: type) }
 
+    func testAlwaysAllowedExecutionIsPerModAndProgram() async {
+        let suite = "appbridge.tests.exec.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let services = AppModServices(environment: ModEnvironmentState())
+        services.defaults = defaults
+        XCTAssertFalse(services.isExecutionAlwaysAllowed(modId: "a.mod", executable: "/usr/bin/git"))
+        services.setExecutionAlwaysAllowed(true, modId: "a.mod", executable: "/usr/bin/git")
+        XCTAssertTrue(services.isExecutionAlwaysAllowed(modId: "a.mod", executable: "/usr/bin/git"))
+        XCTAssertFalse(services.isExecutionAlwaysAllowed(modId: "a.mod", executable: "/bin/sh"))
+        XCTAssertFalse(services.isExecutionAlwaysAllowed(modId: "b.mod", executable: "/usr/bin/git"))
+        let allowed = await services.confirmUnrestrictedExecution(modId: "a.mod", executable: "/usr/bin/git", arguments: ["status"])
+        XCTAssertTrue(allowed)
+        services.forgetAlwaysAllowedExecution(modId: "a.mod")
+        XCTAssertFalse(services.isExecutionAlwaysAllowed(modId: "a.mod", executable: "/usr/bin/git"))
+    }
+
+    func testSelectStyleAndIconConvert() throws {
+        let json = try JSONValue.parse(Data(#"{"type":"vstack","children":[{"type":"text","text":"Head","style":"title"},{"type":"text","text":"plain","style":"nope"},{"type":"button","text":"Go","icon":"arrow.clockwise","command":"go"},{"type":"button","text":"Bad","icon":"no good"},{"type":"select","id":"branch","label":"Branch","command":"pick","selected":"dev","items":[{"id":"main","title":"main"},{"id":"dev","title":"dev"}]},{"type":"select","id":"other","label":"Other","selected":"gone","items":[{"id":"a","title":"A"}]}]}"#.utf8))
+        let node = try XCTUnwrap(ModHost.ModUINode.from(json, owner: "a.mod"))
+        let converted = ModUIConversion.convert(node) { $0.qualified }
+        XCTAssertEqual(converted.issues, [])
+        let kids = converted.node.children
+        XCTAssertEqual(kids[0].kind, .label(text: "Head", style: .title))
+        XCTAssertEqual(kids[1].kind, .label(text: "plain", style: .body))
+        XCTAssertEqual(kids[2].kind, .button(title: "Go", symbolName: "arrow.clockwise"))
+        XCTAssertEqual(kids[3].kind, .button(title: "Bad", symbolName: nil))
+        let items = [Browser.ModUIListItem(id: "main", title: "main"), Browser.ModUIListItem(id: "dev", title: "dev")]
+        XCTAssertEqual(kids[4].kind, .popup(items: items, selectedID: "dev"))
+        XCTAssertEqual(kids[5].kind, .popup(items: [Browser.ModUIListItem(id: "a", title: "A")], selectedID: "a"))
+        XCTAssertEqual(converted.fields[kids[4].id], "branch")
+        XCTAssertEqual(converted.fieldValues[kids[4].id], "dev")
+        XCTAssertEqual(converted.fieldValues[kids[5].id], "a")
+        XCTAssertNotNil(converted.commands[kids[4].id])
+
+        let renderer = ModUIRenderer()
+        var events: [ModUIEvent] = []
+        renderer.onEvent = { events.append($0) }
+        renderer.render(converted.node)
+        let popup = try XCTUnwrap(renderer.control(withID: kids[4].id) as? NSPopUpButton)
+        XCTAssertEqual(popup.titleOfSelectedItem, "dev")
+        popup.selectItem(at: 0)
+        _ = popup.sendAction(popup.action, to: popup.target)
+        XCTAssertEqual(events, [ModUIEvent(nodeID: kids[4].id, kind: .selected("main"))])
+    }
+
     func testHugeAndInvalidNumbersDoNotTrap() {
         XCTAssertEqual(cell(1e20, .number), .number(1e20))
         XCTAssertEqual(cell(1e20, .number).displayText, (1e20).formatted(.number.precision(.fractionLength(0))))

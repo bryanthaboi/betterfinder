@@ -14,6 +14,8 @@ public struct BrowserContext {
 
     public var selectedURLs: [URL] { selection.map(\.url) }
 
+    public func togglePanel(_ qualifiedID: String) { controller?.togglePanel(qualifiedID) }
+
     public init(location: BrowserLocation, providedLocation: ProvidedLocation? = nil, selection: [FileItem] = [], isDualPane: Bool = false, windowNumber: Int? = nil) {
         self.location = location
         self.providedLocation = providedLocation

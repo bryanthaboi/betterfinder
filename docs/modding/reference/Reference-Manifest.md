@@ -368,6 +368,7 @@ string, pattern `^[0-9a-f]{64}$`
 | `alignment` | `leading` \| `trailing` | no |
 | `command` | `commandRef` | no |
 | `id` | `localId` | yes |
+| `panel` | `localId` | no |
 | `replaces` | `builtinId` | no |
 | `title` | `title` | yes |
 

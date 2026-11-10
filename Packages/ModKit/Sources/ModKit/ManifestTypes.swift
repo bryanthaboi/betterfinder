@@ -315,12 +315,13 @@ public struct ModStatusBarItem: Codable, Equatable, Sendable {
     public var alignment: StatusAlignment?
     public var command: String?
     public var replaces: String?
+    public var panel: String?
 
-    public init(id: String, title: String, alignment: StatusAlignment? = nil, command: String? = nil, replaces: String? = nil) {
-        self.id = id; self.title = title; self.alignment = alignment; self.command = command; self.replaces = replaces
+    public init(id: String, title: String, alignment: StatusAlignment? = nil, command: String? = nil, replaces: String? = nil, panel: String? = nil) {
+        self.id = id; self.title = title; self.alignment = alignment; self.command = command; self.replaces = replaces; self.panel = panel
     }
 
-    enum CodingKeys: String, CodingKey, CaseIterable { case id, title, alignment, command, replaces }
+    enum CodingKeys: String, CodingKey, CaseIterable { case id, title, alignment, command, replaces, panel }
 
     public init(from decoder: Decoder) throws {
         let r = try StrictReader(decoder, CodingKeys.self)
@@ -329,6 +330,7 @@ public struct ModStatusBarItem: Codable, Equatable, Sendable {
         alignment = try r.opt(.alignment)
         command = try r.optString(.command, pattern: ModPatterns.commandRef, what: "command reference")
         replaces = try r.optString(.replaces, pattern: ModPatterns.builtinCommand, what: "built-in id")
+        panel = try r.optString(.panel, pattern: ModPatterns.localID, what: "panel id")
     }
 }
 

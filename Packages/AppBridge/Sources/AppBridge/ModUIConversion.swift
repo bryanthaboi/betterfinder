@@ -65,13 +65,28 @@ public enum ModUIConversion {
             let children = n.children.enumerated().map { convert($1, path: "\(path).\($0)", state: &state, resolve: resolve) }
             return Browser.ModUINode(id: id, kind: .stack(axis: n.kind == .vstack ? .vertical : .horizontal, spacing: nil, children: children), accessibilityLabel: label)
         case .text:
-            return Browser.ModUINode(id: id, kind: .label(text: n.text ?? "", style: .body), accessibilityLabel: label)
+            let style: Browser.ModUINode.LabelStyle
+            switch n.style {
+            case .title: style = .title
+            case .secondary: style = .secondary
+            case .monospaced: style = .monospaced
+            case .body, nil: style = .body
+            }
+            return Browser.ModUINode(id: id, kind: .label(text: n.text ?? "", style: style), accessibilityLabel: label)
         case .markdown:
             return Browser.ModUINode(id: id, kind: .label(text: markdownText(n.text ?? ""), style: .body), accessibilityLabel: label)
         case .button:
             if let c = n.command { state.commands[id] = resolve(c) }
-            return Browser.ModUINode(id: id, kind: .button(title: n.text ?? "", symbolName: nil), accessibilityLabel: label ?? nonBlank(n.text), isEnabled: n.command != nil)
+            return Browser.ModUINode(id: id, kind: .button(title: n.text ?? "", symbolName: n.symbolName), accessibilityLabel: label ?? nonBlank(n.text), isEnabled: n.command != nil)
+        case .select:
+            if let c = n.command { state.commands[id] = resolve(c) }
+            let items = n.items.map { Browser.ModUIListItem(id: $0.id, title: $0.title) }
+            let selected = n.selectedID.flatMap { choice in items.contains { $0.id == choice } ? choice : nil } ?? items.first?.id
+            state.fieldIDs[id] = n.id ?? id
+            state.fieldValues[id] = selected ?? ""
+            return Browser.ModUINode(id: id, kind: .popup(items: items, selectedID: selected), accessibilityLabel: label ?? nonBlank(n.text))
         case .list:
+            if let c = n.command { state.commands[id] = resolve(c) }
             let items = n.items.map { Browser.ModUIListItem(id: $0.id, title: $0.title, subtitle: $0.subtitle) }
             return Browser.ModUINode(id: id, kind: .list(items: items, selectedID: nil), accessibilityLabel: label ?? nonBlank(n.text))
         case .progress:

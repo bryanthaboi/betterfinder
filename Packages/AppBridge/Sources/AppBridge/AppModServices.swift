@@ -5,6 +5,8 @@ import ModHost
 public final class AppModServices: ModHostServices, @unchecked Sendable {
     public let environmentState: ModEnvironmentState
     public var modName: @Sendable (String) -> String
+    public var defaults: UserDefaults = .standard
+    public static let alwaysAllowedExecutionKey = "modExecAlwaysAllowed"
     private let lock = NSLock()
     private var scriptedDestination: URL?
     private var scriptedExecution: Bool?
@@ -43,8 +45,40 @@ public final class AppModServices: ModHostServices, @unchecked Sendable {
 
     public func confirmUnrestrictedExecution(modId: String, executable: String, arguments: [String]) async -> Bool {
         if isScripted { return lock.withLock { scriptedExecution ?? false } }
-        return await Self.confirmExecution(mod: modName(modId), executable: executable, arguments: arguments)
+        if isExecutionAlwaysAllowed(modId: modId, executable: executable) { return true }
+        switch await Self.confirmExecution(mod: modName(modId), executable: executable, arguments: arguments) {
+        case .deny: return false
+        case .once: return true
+        case .always:
+            setExecutionAlwaysAllowed(true, modId: modId, executable: executable)
+            return true
+        }
     }
+
+    public func isExecutionAlwaysAllowed(modId: String, executable: String) -> Bool {
+        lock.withLock { (defaults.dictionary(forKey: Self.alwaysAllowedExecutionKey) as? [String: [String]])?[modId]?.contains(executable) ?? false }
+    }
+
+    public func setExecutionAlwaysAllowed(_ allowed: Bool, modId: String, executable: String) {
+        lock.withLock {
+            var all = defaults.dictionary(forKey: Self.alwaysAllowedExecutionKey) as? [String: [String]] ?? [:]
+            var list = all[modId] ?? []
+            list.removeAll { $0 == executable }
+            if allowed { list.append(executable) }
+            all[modId] = list.isEmpty ? nil : list
+            defaults.set(all, forKey: Self.alwaysAllowedExecutionKey)
+        }
+    }
+
+    public func forgetAlwaysAllowedExecution(modId: String) {
+        lock.withLock {
+            var all = defaults.dictionary(forKey: Self.alwaysAllowedExecutionKey) as? [String: [String]] ?? [:]
+            all[modId] = nil
+            defaults.set(all, forKey: Self.alwaysAllowedExecutionKey)
+        }
+    }
+
+    enum ExecutionChoice { case deny, once, always }
 
     public func requestCredential(modId: String, name: String, destination: String) async -> String? {
         if isScripted { return lock.withLock { scriptedCredential } }
@@ -52,17 +86,24 @@ public final class AppModServices: ModHostServices, @unchecked Sendable {
     }
 
     @MainActor
-    static func confirmExecution(mod: String, executable: String, arguments: [String]) async -> Bool {
+    static func confirmExecution(mod: String, executable: String, arguments: [String]) async -> ExecutionChoice {
         let alert = NSAlert()
         alert.alertStyle = .critical
         alert.messageText = "Allow “\(mod)” to run a program with full access?"
         let command = ([executable] + arguments).map { $0.contains(" ") ? "'\($0)'" : $0 }.joined(separator: " ")
-        alert.informativeText = "The program runs as you, with access to all your files and the network. Only allow this if you trust the mod.\n\n\(command)"
+        let program = (executable as NSString).lastPathComponent
+        alert.informativeText = "The program runs as you, with access to all your files and the network. Only allow this if you trust the mod. Always Allow stops asking whenever this mod runs \(program), with any arguments, until you uninstall the mod.\n\n\(command)"
         alert.addButton(withTitle: "Don’t Allow")
         alert.addButton(withTitle: "Allow Once")
+        alert.addButton(withTitle: "Always Allow \(program)")
         alert.buttons[0].keyEquivalent = "\r"
         alert.buttons[1].keyEquivalent = ""
-        return await present(alert) == .alertSecondButtonReturn
+        alert.buttons[2].keyEquivalent = ""
+        switch await present(alert) {
+        case .alertSecondButtonReturn: return .once
+        case .alertThirdButtonReturn: return .always
+        default: return .deny
+        }
     }
 
     @MainActor

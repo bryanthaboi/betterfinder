@@ -1067,6 +1067,9 @@
         },
         "replaces": {
           "$ref": "#/$defs/builtinId"
+        },
+        "panel": {
+          "$ref": "#/$defs/localId"
         }
       },
       "additionalProperties": false,

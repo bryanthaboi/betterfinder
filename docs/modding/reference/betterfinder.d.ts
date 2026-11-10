@@ -32,7 +32,9 @@ declare module "betterfinder" {
   /** Queued operation state. */
   export type OperationState = "queued" | "running" | "done" | "failed" | "cancelled";
   /** Native control a UINode maps to. */
-  export type UINodeType = "vstack" | "hstack" | "text" | "markdown" | "button" | "list" | "progress" | "divider" | "textField";
+  export type UINodeType = "vstack" | "hstack" | "text" | "markdown" | "button" | "list" | "progress" | "divider" | "textField" | "select";
+  /** Look of a text node. */
+  export type UITextStyle = "body" | "title" | "secondary" | "monospaced";
   /** Git working tree state of a path. */
   export type GitState = "modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted";
   /** HTTP method. */
@@ -106,8 +108,14 @@ declare module "betterfinder" {
     text?: string;
     /** Accessibility label. */
     label?: string;
-    /** Command run on press; for a textField, run on Return with args {id, value, fields}. Buttons receive args {fields} with the panel's current text field values. */
+    /** Command run on press; for a textField, run on Return with args {id, value, fields}; for a select, run on change with the chosen item id as value; for a list, run on double-click with the row id as value. Buttons receive args {fields} with the panel's current text field and select values. */
     command?: string;
+    /** Look of a text node; body when omitted. */
+    style?: UITextStyle;
+    /** SF Symbol name drawn on a button. */
+    icon?: string;
+    /** Item id a select shows as chosen; the first item when omitted. */
+    selected?: string;
     /** Placeholder of a textField; text is its initial value. */
     placeholder?: string;
     value?: number;

@@ -281,13 +281,17 @@ final class ValidatorTests: XCTestCase {
                 c["sidebarSections"] = [["id": "s", "title": "S", "items": [["id": "i", "title": "I", "location": "nowhere"]]]]
                 c["views"] = [["id": "v", "title": "V", "layout": "list", "columns": ["nocol"]]]
                 c["settingsPanes"] = [["id": "p", "title": "P", "settings": ["nokey"]]]
+                c["panels"] = [["id": "side", "title": "Side", "edge": "right", "presentation": "slideOut"]]
+                c["statusBar"] = [["id": "ok", "title": "OK", "panel": "side"], ["id": "bad", "title": "Bad", "panel": "ghost"]]
             }
             $0["permissions"] = [
                 ["kind": "fs.read", "scope": "selection", "reason": "r"], ["kind": "fs.write", "scope": "destination", "reason": "r"],
                 ["kind": "process.exec", "mode": "broker", "operations": ["archive.create"], "reason": "r"],
-                ["kind": "ui", "surfaces": ["toolbar", "contextMenu", "sidebar", "view"]],
+                ["kind": "ui", "surfaces": ["toolbar", "contextMenu", "sidebar", "view", "panel", "statusBar"]],
             ]
         }, script: Fixture.script("zip-selection"))
+        assertDiag(o.receipt.diagnostics, .unknownReference, pointer: "/contributes/statusBar/1/panel")
+        XCTAssertFalse(o.receipt.diagnostics.contains { $0.pointer == "/contributes/statusBar/0/panel" })
         assertDiag(o.receipt.diagnostics, .unknownReference, pointer: "/contributes/toolbar/0/command")
         assertDiag(o.receipt.diagnostics, .unknownReference, pointer: "/contributes/sidebarSections/0/items/0/location")
         assertDiag(o.receipt.diagnostics, .unknownReference, pointer: "/contributes/views/0/columns/0")

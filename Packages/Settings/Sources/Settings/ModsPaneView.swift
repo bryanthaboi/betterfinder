@@ -6,6 +6,7 @@ public struct ModsPaneView: View {
     @ObservedObject var model: ModsPaneModel
     @State private var uninstallTarget: InstalledMod?
     @State private var deleteDataOnUninstall = false
+    @AppStorage("modDeveloperMode") private var developerMode = false
 
     public init(model: ModsPaneModel) {
         self.model = model
@@ -28,6 +29,11 @@ public struct ModsPaneView: View {
                 .help("Reload installed mods and the mod index")
                 .accessibilityLabel("Refresh mods and index")
                 if model.isRefreshing { ProgressView().controlSize(.small).accessibilityLabel("Refreshing mods") }
+                Toggle("Developer mode", isOn: $developerMode)
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .fixedSize()
+                    .help("Load unsigned mods straight from a folder or the MCP server. They still go through preflight and ask for permissions.")
             }
             .padding(Spacing.containerPadding)
             Divider()

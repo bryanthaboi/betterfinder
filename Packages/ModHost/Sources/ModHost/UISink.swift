@@ -33,7 +33,8 @@ public struct ModUIListItem: Hashable, Sendable {
 }
 
 public struct ModUINode: Hashable, Sendable {
-    public enum Kind: String, Sendable, CaseIterable { case vstack, hstack, text, markdown, button, list, progress, divider, textField }
+    public enum Kind: String, Sendable, CaseIterable { case vstack, hstack, text, markdown, button, list, progress, divider, textField, select }
+    public enum TextStyle: String, Sendable, CaseIterable { case body, title, secondary, monospaced }
     public var kind: Kind
     public var id: String?
     public var text: String?
@@ -43,13 +44,18 @@ public struct ModUINode: Hashable, Sendable {
     public var children: [ModUINode]
     public var items: [ModUIListItem]
     public var placeholder: String?
+    public var style: TextStyle?
+    public var symbolName: String?
+    public var selectedID: String?
 
     public init(
         kind: Kind, id: String? = nil, text: String? = nil, accessibilityLabel: String? = nil, command: ModCommandReference? = nil,
-        value: Double? = nil, children: [ModUINode] = [], items: [ModUIListItem] = [], placeholder: String? = nil
+        value: Double? = nil, children: [ModUINode] = [], items: [ModUIListItem] = [], placeholder: String? = nil,
+        style: TextStyle? = nil, symbolName: String? = nil, selectedID: String? = nil
     ) {
         self.kind = kind; self.id = id; self.text = text; self.accessibilityLabel = accessibilityLabel; self.command = command
         self.value = value; self.children = children; self.items = items; self.placeholder = placeholder
+        self.style = style; self.symbolName = symbolName; self.selectedID = selectedID
     }
 
     public static let maxNodes = 2048
@@ -69,8 +75,15 @@ public struct ModUINode: Hashable, Sendable {
         return ModUINode(
             kind: kind, id: o["id"]?.stringValue, text: o["text"]?.stringValue, accessibilityLabel: normalizedLabel(o["label"]?.stringValue),
             command: o["command"]?.stringValue.map { ModCommandReference(raw: $0, owner: owner) }, value: o["value"]?.numberValue.flatMap { $0.isFinite ? $0 : nil },
-            children: children, items: items, placeholder: normalizedLabel(o["placeholder"]?.stringValue).map { String($0.prefix(256)) }
+            children: children, items: items, placeholder: normalizedLabel(o["placeholder"]?.stringValue).map { String($0.prefix(256)) },
+            style: o["style"]?.stringValue.flatMap(TextStyle.init(rawValue:)), symbolName: o["icon"]?.stringValue.flatMap(symbol),
+            selectedID: o["selected"]?.stringValue
         )
+    }
+
+    static func symbol(_ raw: String) -> String? {
+        guard (1...64).contains(raw.utf8.count), raw.unicodeScalars.allSatisfy({ $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == ".") }) else { return nil }
+        return raw
     }
 
     public static func normalizedLabel(_ raw: String?) -> String? {
@@ -198,7 +211,8 @@ public struct ModStatusBarContribution: Sendable, Hashable {
     public var alignment: StatusAlignment
     public var command: ModCommandReference?
     public var replaces: String?
-    public init(id: ModContributionID, title: String, alignment: StatusAlignment, command: ModCommandReference? = nil, replaces: String? = nil) { self.id = id; self.title = title; self.alignment = alignment; self.command = command; self.replaces = replaces }
+    public var panel: ModContributionID?
+    public init(id: ModContributionID, title: String, alignment: StatusAlignment, command: ModCommandReference? = nil, replaces: String? = nil, panel: ModContributionID? = nil) { self.id = id; self.title = title; self.alignment = alignment; self.command = command; self.replaces = replaces; self.panel = panel }
 }
 
 public struct ModPanelContribution: Sendable, Hashable {
@@ -289,6 +303,13 @@ public enum ModUIUpdate: Sendable, Hashable {
     case refreshLocation(location: ModContributionID)
     case refreshPreview(provider: ModContributionID, item: URL)
     case invalidatePreviews(provider: ModContributionID)
+
+    var stagingOwner: String? {
+        switch self {
+        case .panelContent(let id, _), .statusText(let id, _), .toolbarItemState(let id, _, _), .commandEnabled(let id, _): return id.modId
+        case .notify, .openLocation, .refreshLocation, .refreshPreview, .invalidatePreviews: return nil
+        }
+    }
 }
 
 public final class ModRegistrationToken: @unchecked Sendable, Hashable {

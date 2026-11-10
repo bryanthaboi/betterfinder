@@ -52,6 +52,7 @@ public struct ModUINode: Hashable, Sendable {
         case button(title: String, symbolName: String?)
         case textField(value: String, placeholder: String?)
         case toggle(title: String, isOn: Bool)
+        case popup(items: [ModUIListItem], selectedID: String?)
         case list(items: [ModUIListItem], selectedID: String?)
         case table(columns: [ModUITableColumn], rows: [ModUITableRow], selectedID: String?)
         case image(source: BrowserImageSource)
@@ -93,6 +94,10 @@ public struct ModUINode: Hashable, Sendable {
         ModUINode(id: id, kind: .toggle(title: title, isOn: isOn), accessibilityLabel: accessibilityLabel)
     }
 
+    public static func popup(id: String, items: [ModUIListItem], selectedID: String? = nil, accessibilityLabel: String? = nil) -> ModUINode {
+        ModUINode(id: id, kind: .popup(items: items, selectedID: selectedID), accessibilityLabel: accessibilityLabel)
+    }
+
     public static func list(id: String, items: [ModUIListItem], selectedID: String? = nil, accessibilityLabel: String? = nil) -> ModUINode {
         ModUINode(id: id, kind: .list(items: items, selectedID: selectedID), accessibilityLabel: accessibilityLabel)
     }
@@ -130,6 +135,7 @@ public struct ModUINode: Hashable, Sendable {
         case .button(let title, _): if blank(title) && label.isEmpty { issues.append("\(id): button needs a title or accessibility label") }
         case .textField: if label.isEmpty { issues.append("\(id): text field needs an accessibility label") }
         case .toggle(let title, _): if blank(title) && label.isEmpty { issues.append("\(id): toggle needs a title or accessibility label") }
+        case .popup: if label.isEmpty { issues.append("\(id): select needs an accessibility label") }
         case .list, .table: if label.isEmpty { issues.append("\(id): list needs an accessibility label") }
         case .image: if label.isEmpty { issues.append("\(id): image needs an accessibility label") }
         case .progress: if label.isEmpty { issues.append("\(id): progress needs an accessibility label") }
@@ -248,7 +254,7 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
         func walk(_ n: ModUINode) {
             switch n.kind {
             case .stack(_, _, let children): children.forEach(walk)
-            case .button, .textField, .toggle, .list, .table: if n.isEnabled { out.append(n.id) }
+            case .button, .textField, .toggle, .popup, .list, .table: if n.isEnabled { out.append(n.id) }
             case .label, .image, .progress, .separator: break
             }
         }
@@ -309,6 +315,19 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
             check.state = isOn ? .on : .off
             check.refusesFirstResponder = false
             view = check
+        case .popup(let items, let selected):
+            let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+            for item in items {
+                let entry = NSMenuItem(title: item.title, action: nil, keyEquivalent: "")
+                entry.representedObject = item.id
+                popup.menu?.addItem(entry)
+            }
+            if let selected, let index = items.firstIndex(where: { $0.id == selected }) { popup.selectItem(at: index) }
+            popup.target = self
+            popup.action = #selector(popupChanged(_:))
+            popup.refusesFirstResponder = false
+            popup.setContentHuggingPriority(.defaultLow, for: .horizontal)
+            view = popup
         case .list(let items, let selected):
             return buildTable(n, columns: [ModUITableColumn(id: "title", title: "")], rows: [], isList: true, items: items, selectedID: selected)
         case .table(let columns, let rows, let selected):
@@ -416,6 +435,8 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
             view.setAccessibilityLabel(label ?? placeholder ?? n.id)
         case .toggle(let title, _):
             view.setAccessibilityLabel(label ?? (title.isEmpty ? n.id : title))
+        case .popup:
+            view.setAccessibilityLabel(label ?? n.id)
         case .image:
             if let label { view.setAccessibilityLabel(label); view.setAccessibilityElement(true) } else { view.setAccessibilityElement(false) }
         case .list, .table, .progress:
@@ -444,7 +465,7 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
                 guard let tf = view as? NSTextField else { continue }
                 tf.font = theme.uiFont
                 tf.textColor = theme.textColor
-            case .toggle:
+            case .toggle, .popup:
                 (view as? NSButton)?.font = theme.uiFont
             case .list, .table:
                 guard let table = view as? NSTableView else { continue }
@@ -475,6 +496,11 @@ public final class ModUIRenderer: NSObject, NSTextFieldDelegate, NSTableViewData
     @objc private func buttonPressed(_ sender: NSButton) {
         guard let id = controls.first(where: { $0.value === sender })?.key else { return }
         emit(id, .press)
+    }
+
+    @objc private func popupChanged(_ sender: NSPopUpButton) {
+        guard let id = controls.first(where: { $0.value === sender })?.key, let choice = sender.selectedItem?.representedObject as? String else { return }
+        emit(id, .selected(choice))
     }
 
     @objc private func togglePressed(_ sender: NSButton) {

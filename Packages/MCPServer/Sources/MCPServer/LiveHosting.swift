@@ -113,7 +113,7 @@ public enum LiveHostError: Error, Equatable, Sendable {
     var message: String {
         switch self {
         case .unavailable(let m): return m
-        case .developerModeRequired: return "turn on developer mode in betterfinder Settings > Mods to hot-load unsigned local mods"
+        case .developerModeRequired: return "turn on Developer mode in betterfinder Settings > Mods to hot-load unsigned local mods"
         case .approvalRequired: return "betterfinder is waiting for native approval"
         case .rejected(let m): return m
         case .failed(let m, _): return m
@@ -133,7 +133,7 @@ public protocol LiveModHosting: Sendable {
 public struct UnavailableLiveHosting: LiveModHosting {
     public var reason: String
 
-    public init(reason: String = "live mod tools need the betterfinder app; start it and turn on developer mode and MCP in Settings > Mods") {
+    public init(reason: String = "live mod tools need the betterfinder app; start it, choose Mods > Start MCP Server, and turn on Developer mode in Settings > Mods") {
         self.reason = reason
     }
 

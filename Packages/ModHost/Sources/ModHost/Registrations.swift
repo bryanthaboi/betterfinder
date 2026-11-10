@@ -36,7 +36,7 @@ extension ModHostController {
                                                           provider: ModColumnProvider(runtime: self, modId: owner, column: x.id, decl: decl), owner: owner))
                 }
                 for x in c.statusBar {
-                    tokens.append(try sink.registerStatusBarItem(ModStatusBarContribution(id: id(x.id), title: x.title, alignment: x.alignment ?? .trailing, command: x.command.map(cmd), replaces: x.replaces), owner: owner))
+                    tokens.append(try sink.registerStatusBarItem(ModStatusBarContribution(id: id(x.id), title: x.title, alignment: x.alignment ?? .trailing, command: x.command.map(cmd), replaces: x.replaces, panel: x.panel.map(id)), owner: owner))
                 }
                 for x in c.panels {
                     tokens.append(try sink.registerPanel(ModPanelContribution(id: id(x.id), title: x.title, edge: x.edge, presentation: x.presentation, symbolName: x.icon), owner: owner))

@@ -416,10 +416,18 @@ public final class BrowserModSink: ModUIRegistrySink {
         let qid = item.id.qualified
         let title = item.title
         let command = item.command.map(browserCommandID)
+        let panel = item.panel?.qualified
+        var action: (@MainActor (BrowserContext) -> Void)?
+        if command != nil || panel != nil {
+            action = { [weak self] (ctx: BrowserContext) in
+                if let panel { ctx.togglePanel(panel) }
+                if let command { _ = self?.registries.commands.run(command, context: ctx) }
+            }
+        }
         let spec = StatusBarSegmentSpec(
             id: item.id.localId, alignment: item.alignment == .leading ? .leading : .trailing, accessibilityLabel: title,
             makeDriver: { [weak self] in ModStatusDriver(sink: self, qualifiedID: qid, fallback: title) },
-            action: command.map { c in { [weak self] ctx in _ = self?.registries.commands.run(c, context: ctx) } }
+            action: action
         )
         return try register(spec, in: statusBar, owner: owner, replaces: item.replaces) { [weak self] in
             self?.statusTexts[qid] = nil
@@ -443,8 +451,16 @@ public final class BrowserModSink: ModUIRegistrySink {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     switch event.kind {
-                    case .press, .activated:
+                    case .press:
                         if let command = self.panelCommands[qid]?[event.nodeID] { self.runPanelCommand(command, panel: qid, args: self.panelArgs(qid, extra: [:])) }
+                    case .activated(let row):
+                        if let command = self.panelCommands[qid]?[event.nodeID] { self.runPanelCommand(command, panel: qid, args: self.panelArgs(qid, extra: ["value": .string(row)])) }
+                    case .selected(let choice):
+                        guard let fieldID = self.panelFieldIDs[qid]?[event.nodeID] else { break }
+                        self.panelFieldValues[qid, default: [:]][event.nodeID] = choice
+                        if let command = self.panelCommands[qid]?[event.nodeID] {
+                            self.runPanelCommand(command, panel: qid, args: self.panelArgs(qid, extra: ["id": .string(fieldID), "value": .string(choice)]))
+                        }
                     case .textChanged(let text):
                         if self.panelFieldIDs[qid]?[event.nodeID] != nil { self.panelFieldValues[qid, default: [:]][event.nodeID] = String(text.prefix(4096)) }
                     case .textCommitted(let text):

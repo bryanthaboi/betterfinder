@@ -119,6 +119,7 @@ public final class AppModRuntime {
         sink = BrowserModSink(registries: configuration.registries, environment: environment)
         forwarder = ModEventForwarder(registries: configuration.registries, environment: environment)
         services = AppModServices(environment: environment)
+        services.defaults = configuration.defaults
         index = ModIndexBridge(paths: configuration.paths, url: configuration.indexURL)
         controller = try Self.makeController(configuration, services: services)
         services.modName = { [weak controller] id in controller?.status(id: id)?.name ?? id }
@@ -175,6 +176,7 @@ public final class AppModRuntime {
     public var management: ModManagementControlling {
         if let m = managementValue { return m }
         let m = GatedModManagement(inner: ModHostManagementController(runtime: controller, index: index, fetcher: index), gate: configuration.checkGate)
+        m.onUninstall = { [services] id in services.forgetAlwaysAllowedExecution(modId: id) }
         managementValue = m
         return m
     }
@@ -477,6 +479,7 @@ public final class AppModRuntime {
 public final class GatedModManagement: ModManagementControlling, @unchecked Sendable {
     public let inner: ModHostManagementController
     public let gate: ModCheckGate?
+    public var onUninstall: (@Sendable (String) -> Void)?
 
     public init(inner: ModHostManagementController, gate: ModCheckGate?) {
         self.inner = inner
@@ -496,7 +499,10 @@ public final class GatedModManagement: ModManagementControlling, @unchecked Send
     }
     public func enable(id: String) async throws -> Settings.InstalledMod { try await inner.enable(id: id) }
     public func disable(id: String) async throws -> Settings.InstalledMod { try await inner.disable(id: id) }
-    public func uninstall(id: String, deleteData: Bool) async throws { try await inner.uninstall(id: id, deleteData: deleteData) }
+    public func uninstall(id: String, deleteData: Bool) async throws {
+        try await inner.uninstall(id: id, deleteData: deleteData)
+        onUninstall?(id)
+    }
     public func update(id: String, approvedPermissionIDs: Set<String>) async throws -> Settings.InstalledMod {
         try await gated { try await self.inner.update(id: id, approvedPermissionIDs: approvedPermissionIDs) }
     }

@@ -152,6 +152,7 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
     private var safeModeValue = false
     private var hostStarted = false
     private var eventLog: [ModHostEvent] = []
+    private var stagedUI: [String: [ModUIUpdate]] = [:]
     private var sinkRef: AnyObject?
     private var assetsRef: AnyObject?
     private var checkHostValue: ModHostSupervisor?
@@ -674,8 +675,10 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
                 throw ModRuntimeError.activationFailed("\(manifest.name) failed to load: \(e.message)")
             }
             if let decl = mod.handlers(for: "activate").first {
+                lock.withLock { stagedUI[mod.id] = [] }
                 let r = await invoke(mod, decl: decl, input: { _ in .object(["reason": .string(reason)]) }, gesture: false)
                 if case .failure(let e) = r {
+                    discardStagedUI(mod.id)
                     supervisor.unload(mod)
                     throw ModRuntimeError.activationFailed("\(manifest.name) activate failed: \(e.localizedDescription)")
                 }
@@ -686,8 +689,16 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
 
     func registerLive(_ record: ModLiveRecord) async throws {
         let mod = record.mod
-        let tokens = try await MainActor.run { () throws -> [ModRegistrationToken] in
-            try self.registerContributions(mod, sink: self.sink, assets: self.assets, settings: mod.settings)
+        let tokens: [ModRegistrationToken]
+        do {
+            tokens = try await MainActor.run { () throws -> [ModRegistrationToken] in
+                let tokens = try self.registerContributions(mod, sink: self.sink, assets: self.assets, settings: mod.settings)
+                self.replayStagedUI(mod.id)
+                return tokens
+            }
+        } catch {
+            discardStagedUI(mod.id)
+            throw error
         }
         record.tokens = tokens
         record.fileOpToken = registerFileOpHook(mod, record: record)
@@ -757,8 +768,11 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
             let oldTokens = old.tokens
             oldTokens.forEach { $0.cancel() }
             do {
-                return .success(try self.registerContributions(freshMod, sink: self.sink, assets: self.assets, settings: freshMod.settings))
+                let tokens = try self.registerContributions(freshMod, sink: self.sink, assets: self.assets, settings: freshMod.settings)
+                self.replayStagedUI(id)
+                return .success(tokens)
             } catch {
+                self.discardStagedUI(id)
                 if let restored = try? self.registerContributions(old.mod, sink: self.sink, assets: self.assets, settings: old.mod.settings) { old.tokens = restored }
                 return .failure(error)
             }
@@ -841,7 +855,27 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
     }
 
     func applyUI(_ update: ModUIUpdate) async {
+        if let owner = update.stagingOwner {
+            let staged = lock.withLock { () -> Bool in
+                guard var pending = stagedUI[owner] else { return false }
+                if pending.count >= 256 { pending.removeFirst() }
+                pending.append(update)
+                stagedUI[owner] = pending
+                return true
+            }
+            if staged { return }
+        }
         await MainActor.run { self.sink?.apply(update) }
+    }
+
+    func discardStagedUI(_ id: String) {
+        lock.withLock { _ = stagedUI.removeValue(forKey: id) }
+    }
+
+    @MainActor
+    func replayStagedUI(_ id: String) {
+        let pending = lock.withLock { stagedUI.removeValue(forKey: id) } ?? []
+        for update in pending { sink?.apply(update) }
     }
 
     func settingsChanged(_ mod: ActiveMod, keys: [String]) async {

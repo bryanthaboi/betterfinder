@@ -51,7 +51,8 @@ public extension ModCatalog {
             .enumeration("ConflictPolicy", "Name conflict resolution.", ["fail", "rename", "skip"]),
             .enumeration("ArchiveFormat", "Archive container format.", ["zip", "tarGz"]),
             .enumeration("OperationState", "Queued operation state.", ["queued", "running", "done", "failed", "cancelled"]),
-            .enumeration("UINodeType", "Native control a UINode maps to.", ["vstack", "hstack", "text", "markdown", "button", "list", "progress", "divider", "textField"]),
+            .enumeration("UINodeType", "Native control a UINode maps to.", ["vstack", "hstack", "text", "markdown", "button", "list", "progress", "divider", "textField", "select"]),
+            .enumeration("UITextStyle", "Look of a text node.", ["body", "title", "secondary", "monospaced"]),
             .enumeration("GitState", "Git working tree state of a path.", ["modified", "added", "deleted", "renamed", "untracked", "conflicted"]),
             .enumeration("HttpMethod", "HTTP method.", HTTPMethod.allCases.map(\.rawValue)),
 
@@ -83,7 +84,10 @@ public extension ModCatalog {
             .record("UINode", "Data-only description of a native control tree.", [
                 mkF("type", .ref("UINodeType")), mkF("id", .string, optional: true), mkF("text", .string, optional: true),
                 mkF("label", .string, optional: true, "Accessibility label."),
-                mkF("command", .string, optional: true, "Command run on press; for a textField, run on Return with args {id, value, fields}. Buttons receive args {fields} with the panel's current text field values."),
+                mkF("command", .string, optional: true, "Command run on press; for a textField, run on Return with args {id, value, fields}; for a select, run on change with the chosen item id as value; for a list, run on double-click with the row id as value. Buttons receive args {fields} with the panel's current text field and select values."),
+                mkF("style", .ref("UITextStyle"), optional: true, "Look of a text node; body when omitted."),
+                mkF("icon", .string, optional: true, "SF Symbol name drawn on a button."),
+                mkF("selected", .string, optional: true, "Item id a select shows as chosen; the first item when omitted."),
                 mkF("placeholder", .string, optional: true, "Placeholder of a textField; text is its initial value."),
                 mkF("value", .number, optional: true), mkF("children", .list(.ref("UINode")), optional: true),
                 mkF("items", .list(.ref("UIListItem")), optional: true),

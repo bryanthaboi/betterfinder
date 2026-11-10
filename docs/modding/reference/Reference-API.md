@@ -1,6 +1,6 @@
 # betterfinder mod API 1.0.0
 
-Generated from the ModKit catalog (digest `abcce8e4215c47a0fab68883b66a11f9ecbef42ea4238e979b520707e0d7bfc5`). Manifest version 1, script format 1, toolchain `modkit/1.0.0 bfscript/1`.
+Generated from the ModKit catalog (digest `f4307c2862dc902e53347b79cc166a986c3f91d11a0e07fc24f33c2d55fb5856`). Manifest version 1, script format 1, toolchain `modkit/1.0.0 bfscript/1`.
 
 ## Limits
 
@@ -374,7 +374,13 @@ One of: `queued`, `running`, `done`, `failed`, `cancelled`
 
 Native control a UINode maps to.
 
-One of: `vstack`, `hstack`, `text`, `markdown`, `button`, `list`, `progress`, `divider`, `textField`
+One of: `vstack`, `hstack`, `text`, `markdown`, `button`, `list`, `progress`, `divider`, `textField`, `select`
+
+### `UITextStyle`
+
+Look of a text node.
+
+One of: `body`, `title`, `secondary`, `monospaced`
 
 ### `GitState`
 
@@ -485,7 +491,10 @@ Data-only description of a native control tree.
 | `id` | `string` | no |  |
 | `text` | `string` | no |  |
 | `label` | `string` | no | Accessibility label. |
-| `command` | `string` | no | Command run on press; for a textField, run on Return with args {id, value, fields}. Buttons receive args {fields} with the panel's current text field values. |
+| `command` | `string` | no | Command run on press; for a textField, run on Return with args {id, value, fields}; for a select, run on change with the chosen item id as value; for a list, run on double-click with the row id as value. Buttons receive args {fields} with the panel's current text field and select values. |
+| `style` | `UITextStyle` | no | Look of a text node; body when omitted. |
+| `icon` | `string` | no | SF Symbol name drawn on a button. |
+| `selected` | `string` | no | Item id a select shows as chosen; the first item when omitted. |
 | `placeholder` | `string` | no | Placeholder of a textField; text is its initial value. |
 | `value` | `number` | no |  |
 | `children` | `UINode[]` | no |  |

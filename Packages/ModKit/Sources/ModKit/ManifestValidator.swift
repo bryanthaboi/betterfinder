@@ -90,6 +90,11 @@ public enum ModManifestValidator {
         for (i, t) in c.toolbar.enumerated() { commandRef(t.command, "/contributes/toolbar/\(i)/command") }
         for (i, t) in c.contextMenu.enumerated() { commandRef(t.command, "/contributes/contextMenu/\(i)/command") }
         for (i, t) in c.statusBar.enumerated() { if let cmd = t.command { commandRef(cmd, "/contributes/statusBar/\(i)/command") } }
+        for (i, t) in c.statusBar.enumerated() {
+            if let panel = t.panel, !c.panels.contains(where: { $0.id == panel }) {
+                err(.unknownReference, "/contributes/statusBar/\(i)/panel", "panel '\(panel)' is not declared in contributes.panels", fix: "Declare the panel or remove the reference")
+            }
+        }
         for (i, t) in c.keybindings.enumerated() { commandRef(t.command, "/contributes/keybindings/\(i)/command") }
         for (i, s) in c.sidebarSections.enumerated() {
             for (j, item) in s.items.enumerated() {

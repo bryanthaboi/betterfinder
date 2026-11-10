@@ -85,7 +85,7 @@ public final class RemoteLiveModHosting: LiveModHosting, @unchecked Sendable {
         self.session = URLSession(configuration: config)
     }
 
-    static let notRunning = "betterfinder is not running, or MCP is not enabled in Settings > Mods, so live tools (load, screenshot, logs) are unavailable"
+    static let notRunning = "betterfinder is not running, or its MCP server is off (Mods > Start MCP Server), so live tools (load, screenshot, logs) are unavailable"
 
     private func call(_ op: String, _ body: JSONValue) async throws -> JSONValue {
         guard let info = MCPTokenFile.read(from: tokenFile), let base = info.baseURL else { throw LiveHostError.unavailable(Self.notRunning) }
@@ -100,7 +100,7 @@ public final class RemoteLiveModHosting: LiveModHosting, @unchecked Sendable {
         catch { throw LiveHostError.unavailable(Self.notRunning) }
         guard let http = response as? HTTPURLResponse else { throw LiveHostError.unavailable(Self.notRunning) }
         if http.statusCode == 401 || http.statusCode == 403 {
-            throw LiveHostError.unavailable("betterfinder refused the pairing token; restart the MCP server or re-pair in Settings > Mods")
+            throw LiveHostError.unavailable("betterfinder refused the pairing token; restart the MCP server from the Mods menu (Mods > Start MCP Server)")
         }
         guard http.statusCode == 200, let json = try? JSONValue.parse(data) else {
             throw LiveHostError.unavailable("betterfinder answered with HTTP \(http.statusCode)")

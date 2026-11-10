@@ -126,6 +126,7 @@ final class PanelContentViewController: NSViewController {
 
     override func loadView() {
         let root = ThemedPanelRoot()
+        root.clipsToBounds = true
         root.setAccessibilityElement(true)
         root.setAccessibilityRole(.group)
         root.setAccessibilityLabel(spec.accessibilityLabel ?? "\(spec.title) panel")
@@ -222,15 +223,36 @@ final class PanelContentViewController: NSViewController {
     func show(_ node: ModUINode) {
         guard node != renderedNode else { return }
         renderedNode = node
-        if renderer.rootView.superview !== body {
+        if renderer.rootView.superview == nil {
             let r = renderer.rootView
             r.translatesAutoresizingMaskIntoConstraints = false
-            body.addSubview(r)
+            let document = FlippedPanelDocument()
+            document.translatesAutoresizingMaskIntoConstraints = false
+            document.addSubview(r)
+            let scroll = NSScrollView()
+            scroll.translatesAutoresizingMaskIntoConstraints = false
+            scroll.drawsBackground = false
+            scroll.borderType = .noBorder
+            scroll.hasVerticalScroller = true
+            scroll.autohidesScrollers = true
+            scroll.documentView = document
+            body.addSubview(scroll)
+            let clip = scroll.contentView
+            let collapse = document.heightAnchor.constraint(equalToConstant: 0)
+            collapse.priority = .defaultLow
             NSLayoutConstraint.activate([
-                r.topAnchor.constraint(equalTo: body.topAnchor, constant: Spacing.panelPadding),
-                r.leadingAnchor.constraint(equalTo: body.leadingAnchor, constant: Spacing.panelPadding),
-                r.trailingAnchor.constraint(equalTo: body.trailingAnchor, constant: -Spacing.panelPadding),
-                r.bottomAnchor.constraint(equalTo: body.bottomAnchor, constant: -Spacing.panelPadding),
+                scroll.topAnchor.constraint(equalTo: body.topAnchor),
+                scroll.leadingAnchor.constraint(equalTo: body.leadingAnchor),
+                scroll.trailingAnchor.constraint(equalTo: body.trailingAnchor),
+                scroll.bottomAnchor.constraint(equalTo: body.bottomAnchor),
+                document.topAnchor.constraint(equalTo: clip.topAnchor),
+                document.leadingAnchor.constraint(equalTo: clip.leadingAnchor),
+                document.widthAnchor.constraint(equalTo: clip.widthAnchor),
+                r.topAnchor.constraint(equalTo: document.topAnchor, constant: Spacing.panelPadding),
+                r.leadingAnchor.constraint(equalTo: document.leadingAnchor, constant: Spacing.panelPadding),
+                r.trailingAnchor.constraint(equalTo: document.trailingAnchor, constant: -Spacing.panelPadding),
+                r.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -Spacing.panelPadding),
+                collapse,
             ])
         }
         renderer.render(node)
@@ -243,6 +265,10 @@ final class PanelContentViewController: NSViewController {
 }
 
 extension PanelContentViewController: ThemedSurface {}
+
+final class FlippedPanelDocument: NSView {
+    override var isFlipped: Bool { true }
+}
 
 final class ThemedPanelRoot: NSView {
     var fill: NSColor = .windowBackgroundColor { didSet { needsDisplay = true } }

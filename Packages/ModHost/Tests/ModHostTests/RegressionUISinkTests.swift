@@ -45,4 +45,63 @@ final class RegressionUISinkTests: XCTestCase {
         XCTAssertNil(v.validate(ok, .ref("ColumnValue")))
         XCTAssertNotNil(v.validate(.object(["handle": .string("h"), "number": .double(.nan)]), .ref("ColumnValue")))
     }
+
+    func testStatusTextSetDuringActivateArrivesAfterRegistration() async throws {
+        let env = try await TestEnv()
+        defer { Task { await env.cleanup() } }
+        let sink = await MainActor.run { () -> OrderingSink in
+            let sink = OrderingSink()
+            env.runtime.attach(sink: sink, assets: nil)
+            return sink
+        }
+        func manifest(_ version: String) -> [String: Any] {
+            [
+                "version": version,
+                "permissions": [["kind": "ui", "surfaces": ["statusBar"]]],
+                "contributes": ["statusBar": [["id": "s", "title": "S"]]],
+                "hooks": [["name": "activate", "handler": "activate", "version": 1]],
+            ]
+        }
+        func script(_ text: String) -> String {
+            "import { ui } from \"betterfinder\";\nexport async function activate(context: unknown, input: unknown) { await ui.setStatusText(\"s\", \"\(text)\"); }"
+        }
+        let v1 = try env.mod("bob.status", manifest: manifest("1.0.0"), files: ["scripts/main.ts": script("one")])
+        try await env.install(v1)
+        try await env.runtime.enable(id: "bob.status")
+        let first = await sink.statusUpdates
+        XCTAssertEqual(first.map(\.text), ["one"])
+        XCTAssertEqual(first.map(\.registered), [true])
+
+        let v2 = try env.mod("bob.status", manifest: manifest("1.0.1"), files: ["scripts/main.ts": script("two")])
+        let swapped = try await env.runtime.reload(id: "bob.status", from: v2)
+        XCTAssertTrue(swapped.installed)
+        let second = await sink.statusUpdates
+        XCTAssertEqual(second.map(\.text), ["one", "two"])
+        XCTAssertEqual(second.map(\.registered), [true, true])
+    }
+}
+
+@MainActor
+final class OrderingSink: ModUIRegistrySink {
+    let inner = ModRecordingSink()
+    private(set) var statusUpdates: [(text: String, registered: Bool)] = []
+
+    func registerToolbarItem(_ item: ModToolbarContribution, owner: String) throws -> ModRegistrationToken { try inner.registerToolbarItem(item, owner: owner) }
+    func registerSidebarSection(_ section: ModSidebarContribution, owner: String) throws -> ModRegistrationToken { try inner.registerSidebarSection(section, owner: owner) }
+    func registerContextMenuItem(_ item: ModContextMenuContribution, owner: String) throws -> ModRegistrationToken { try inner.registerContextMenuItem(item, owner: owner) }
+    func registerColumn(_ column: ModColumnContribution, provider: ModColumnValuesProviding, owner: String) throws -> ModRegistrationToken { try inner.registerColumn(column, provider: provider, owner: owner) }
+    func registerStatusBarItem(_ item: ModStatusBarContribution, owner: String) throws -> ModRegistrationToken { try inner.registerStatusBarItem(item, owner: owner) }
+    func registerPanel(_ panel: ModPanelContribution, owner: String) throws -> ModRegistrationToken { try inner.registerPanel(panel, owner: owner) }
+    func registerPreview(_ preview: ModPreviewContribution, provider: ModPreviewProviding, owner: String) throws -> ModRegistrationToken { try inner.registerPreview(preview, provider: provider, owner: owner) }
+    func registerView(_ view: ModViewContribution, owner: String) throws -> ModRegistrationToken { try inner.registerView(view, owner: owner) }
+    func registerLocation(_ location: ModLocationContribution, provider: ModLocationProviding, owner: String) throws -> ModRegistrationToken { try inner.registerLocation(location, provider: provider, owner: owner) }
+    func registerSearchProvider(_ provider: ModSearchProviderContribution, search: ModSearchProviding, owner: String) throws -> ModRegistrationToken { try inner.registerSearchProvider(provider, search: search, owner: owner) }
+    func registerCommand(_ command: ModCommandContribution, runner: ModCommandRunning, owner: String) throws -> ModRegistrationToken { try inner.registerCommand(command, runner: runner, owner: owner) }
+    func registerKeybinding(_ binding: ModKeybindingContribution, owner: String) throws -> ModRegistrationToken { try inner.registerKeybinding(binding, owner: owner) }
+    func apply(_ update: ModUIUpdate) {
+        if case .statusText(let item, let text) = update {
+            statusUpdates.append((text, inner.ids(kind: .statusBar).contains(item.qualified)))
+        }
+        inner.apply(update)
+    }
 }
