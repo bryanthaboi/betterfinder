@@ -21,24 +21,33 @@ public actor SizeEngine {
     public static let shared = SizeEngine()
 
     private let client = SizeIndexClient()
+    private var availability: (checked: Date, value: Bool)?
     public init() {}
+
+    func indexerAvailable() async -> Bool {
+        if let availability, Date().timeIntervalSince(availability.checked) < 30 { return availability.value }
+        let value = await client.status() != "unavailable"
+        availability = (Date(), value)
+        return value
+    }
 
     public func cachedSize(of url: URL) -> SizeResult? {
         guard let indexed = SharedIndexReader.size(for: url) else { return nil }
         return Self.result(indexed)
     }
 
-    public func invalidate(path: String) {
+    public func invalidate(path: String) async {
         var st = stat()
         let directory = lstat(path, &st) == 0 && st.st_mode & S_IFMT == S_IFDIR
         let target = directory ? path : URL(fileURLWithPath: path).deletingLastPathComponent().path
-        Task { _ = await client.prioritize(path: target) }
+        guard await indexerAvailable() else { return }
+        _ = await client.refresh(path: target)
     }
 
-    fileprivate static func result(_ size: IndexedSize) -> SizeResult {
+    static func result(_ size: IndexedSize) -> SizeResult {
         var result = SizeResult(allocatedBytes: size.allocatedBytes, logicalBytes: size.logicalBytes, itemCount: size.items, isComplete: size.state == .complete)
         result.isPartial = size.state == .partial
-        result.isStale = size.state == .stale || Date().timeIntervalSince(size.scannedAt) >= 60
+        result.isStale = size.state == .stale
         if result.isStale { result.isComplete = false }
         return result
     }
@@ -47,11 +56,12 @@ public actor SizeEngine {
         AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
             let task = Task.detached(priority: .background) {
                 let client = SizeIndexClient()
-                if let hit = SharedIndexReader.size(for: url) {
+                let available = await self.indexerAvailable()
+                if available, let hit = SharedIndexReader.size(for: url) {
                     continuation.yield(Self.result(hit))
-                    if hit.state == .complete && Date().timeIntervalSince(hit.scannedAt) < 60 { continuation.finish(); return }
+                    if hit.state == .complete { continuation.finish(); return }
                 }
-                if await client.prioritize(path: url.path) {
+                if available, await client.prioritize(path: url.path) {
                     var last: IndexedSize?
                     var failures = 0
                     while !Task.isCancelled {

@@ -148,9 +148,33 @@ public final class SizeIndexWriter {
         if isNew { try enqueue(path: path, recursive: true, priority: 0) }
     }
 
+    static let prioritizeLimit: Int64 = 4096
+
     public func prioritize(_ url: URL) throws {
-        try db.run("INSERT OR IGNORE INTO roots VALUES(?)", [SizeIndexLocation.canonical(url).path])
-        try enqueue(path: SizeIndexLocation.canonical(url).path, recursive: true, priority: 10)
+        let path = SizeIndexLocation.canonical(url).path
+        var st = stat()
+        if lstat(path, &st) == 0, let (volume, inode, unscanned) = try db.first("SELECT volume_uuid,inode,unscanned FROM directories WHERE path=? AND inode=?", args: [.text(path), .text(String(st.st_ino))], {
+            (IndexDatabase.text($0, 0) ?? "", IndexDatabase.text($0, 1) ?? "", IndexDatabase.int($0, 2))
+        }) {
+            guard unscanned > 0 else { return }
+            try db.run("""
+            WITH RECURSIVE s(i) AS (SELECT ?1 UNION ALL SELECT d.inode FROM directories d JOIN s ON d.parent_inode=s.i WHERE d.volume_uuid=?2 AND d.unscanned>0)
+            INSERT INTO pending(path,recursive,priority) SELECT d.path,0,10 FROM s JOIN directories d ON d.volume_uuid=?2 AND d.inode=s.i WHERE d.self_pending=1 AND d.path IS NOT NULL LIMIT ?3
+            ON CONFLICT(path) DO UPDATE SET priority=max(priority,excluded.priority)
+            """, args: [.text(inode), .text(volume), .int(Self.prioritizeLimit)])
+            return
+        }
+        if try !contains(path) { try db.run("INSERT OR IGNORE INTO roots VALUES(?)", [path]) }
+        try enqueue(path: path, recursive: true, priority: 10)
+    }
+
+    public func refresh(_ url: URL) throws {
+        var path = SizeIndexLocation.canonical(url).path
+        while try db.first("SELECT 1 FROM directories WHERE path=?", args: [.text(path)], { _ in true }) == nil {
+            guard path != "/", !path.isEmpty else { return }
+            path = (path as NSString).deletingLastPathComponent
+        }
+        try enqueue(path: path, recursive: false, priority: 10)
     }
 
     public func enqueue(path: String, recursive: Bool, priority: Int = 0) throws {

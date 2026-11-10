@@ -8,6 +8,7 @@ import ServiceManagement
     func resume(reply: @escaping (Bool) -> Void)
     func rebuild(reply: @escaping (Bool) -> Void)
     func status(reply: @escaping (String) -> Void)
+    func refresh(path: String, reply: @escaping (Bool) -> Void)
 }
 
 public enum SizeIndexService {
@@ -47,6 +48,7 @@ public final class SizeIndexClient: @unchecked Sendable {
         }
     }
     public func prioritize(path: String) async -> Bool { await call(fallback: false) { $0.prioritize(path: path, reply: $1) } }
+    public func refresh(path: String) async -> Bool { await call(fallback: false) { $0.refresh(path: path, reply: $1) } }
     public func addRoot(path: String) async -> Bool { await call(fallback: false) { $0.addRoot(path: path, reply: $1) } }
     public func pause() async -> Bool { await call(fallback: false) { $0.pause(reply: $1) } }
     public func resume() async -> Bool { await call(fallback: false) { $0.resume(reply: $1) } }

@@ -592,11 +592,14 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
 
     private func handleFSEvents(_ batch: FolderModel.FSEventBatch) {
         let paths = batch.paths
-        Task.detached(priority: .utility) {
+        let root = location.url?.pathKey
+        Task.detached(priority: .utility) { [weak self] in
             for p in paths { await SizeEngine.shared.invalidate(path: p) }
-        }
-        if let root = location.url?.pathKey {
-            for p in paths { sizes.invalidateContaining(path: p, under: root) }
+            guard let root else { return }
+            await MainActor.run {
+                guard let self, self.location.url?.pathKey == root else { return }
+                for p in paths { self.sizes.invalidateContaining(path: p, under: root) }
+            }
         }
         for p in paths { IconCache.shared.invalidate(URL(fileURLWithPath: p)) }
         if !batch.directories.isEmpty { content.childDirectoryEvents(batch.directories) }

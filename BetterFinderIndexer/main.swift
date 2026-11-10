@@ -73,6 +73,9 @@ final class Indexer: NSObject, NSXPCListenerDelegate, SizeIndexProtocol {
     func prioritize(path: String, reply: @escaping (Bool) -> Void) {
         perform(reply) { let url = URL(fileURLWithPath: path); try self.events.watch(url); try self.writer.prioritize(url) }
     }
+    func refresh(path: String, reply: @escaping (Bool) -> Void) {
+        perform(reply) { try self.writer.refresh(URL(fileURLWithPath: path)) }
+    }
     func addRoot(path: String, reply: @escaping (Bool) -> Void) {
         perform(reply) { let url = URL(fileURLWithPath: path); try self.events.watch(url); try self.writer.addRoot(url, allowNetwork: true) }
     }
