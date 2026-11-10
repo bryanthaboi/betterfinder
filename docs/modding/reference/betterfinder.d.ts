@@ -63,8 +63,10 @@ declare module "betterfinder" {
     kind: FileKind;
     /** Requires ui.selection level paths or a root grant. */
     path?: string;
-    /** Requires metadata access. */
+    /** Requires metadata access. For a folder this is the directory entry, not its contents. */
     size?: Int64String;
+    /** Size on disk of a folder's contents, present in column.values once the app has measured the folder. The column is asked again when the measurement lands. Requires metadata access. */
+    totalSize?: Int64String;
     /** ISO-8601; requires metadata access. */
     modified?: string;
   }

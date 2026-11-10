@@ -34,7 +34,7 @@ struct ModFileIdentity: Equatable {
         guard Darwin.lstat(path, &st) == 0 else { return nil }
         let mode = st.st_mode & S_IFMT
         let mtime = Date(timeIntervalSince1970: TimeInterval(st.st_mtimespec.tv_sec) + TimeInterval(st.st_mtimespec.tv_nsec) / 1e9)
-        return ModFileIdentity(device: UInt64(st.st_dev), inode: UInt64(st.st_ino), isDirectory: mode == S_IFDIR, isSymlink: mode == S_IFLNK, size: Int64(st.st_size), modified: mtime)
+        return ModFileIdentity(device: UInt64(UInt32(bitPattern: st.st_dev)), inode: UInt64(st.st_ino), isDirectory: mode == S_IFDIR, isSymlink: mode == S_IFLNK, size: Int64(st.st_size), modified: mtime)
     }
 
     var kind: String { isSymlink ? "symlink" : isDirectory ? "folder" : "file" }

@@ -105,8 +105,22 @@ final class ModColumnProvider: ModColumnValuesProviding, @unchecked Sendable {
             var byHandle = [String: URL]()
             let broker = runtime.broker
             let column = column
+            var totals = [URL: Int64]()
+            if mod.grants.selectionLevel == .metadata {
+                for url in chunk {
+                    var isDirectory: ObjCBool = false
+                    guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory), isDirectory.boolValue else { continue }
+                    if let total = await runtime.deps.services.measuredFolderSize(for: url) { totals[url] = total }
+                }
+            }
+            let measured = totals
             let r = await runtime.invoke(mod, decl: decl, input: { inv in
-                let refs = broker.makeRefs(mod, urls: chunk, invocation: inv)
+                var refs = broker.makeRefs(mod, urls: chunk, invocation: inv)
+                for (index, url) in chunk.enumerated() {
+                    guard let total = measured[url], case .object(var fields) = refs[index], fields["kind"]?.stringValue == "folder" else { continue }
+                    fields["totalSize"] = .string(String(total))
+                    refs[index] = .object(fields)
+                }
                 for (ref, url) in zip(refs, chunk) { if let h = ref["handle"]?.stringValue { byHandle[h] = url } }
                 return .object(["column": .string(column), "items": .array(refs), "revision": .int(revision)])
             }, gesture: false)

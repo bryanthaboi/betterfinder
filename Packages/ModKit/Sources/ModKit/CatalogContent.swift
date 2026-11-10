@@ -66,7 +66,8 @@ public extension ModCatalog {
             .record("FileRef", "Reference to a file. Optional fields are populated only when granted.", [
                 mkF("handle", .string, handleDoc), mkF("name", .string), mkF("kind", .ref("FileKind")),
                 mkF("path", .string, optional: true, "Requires ui.selection level paths or a root grant."),
-                mkF("size", .ref("Int64String"), optional: true, "Requires metadata access."),
+                mkF("size", .ref("Int64String"), optional: true, "Requires metadata access. For a folder this is the directory entry, not its contents."),
+                mkF("totalSize", .ref("Int64String"), optional: true, "Size on disk of a folder's contents, present in column.values once the app has measured the folder. The column is asked again when the measurement lands. Requires metadata access."),
                 mkF("modified", .string, optional: true, "ISO-8601; requires metadata access."),
             ]),
             .record("DirectoryPage", "One page of directory entries.", [mkF("entries", .list(.ref("FileRef"))), mkF("cursor", .string, optional: true)]),

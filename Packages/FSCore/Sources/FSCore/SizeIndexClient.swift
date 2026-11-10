@@ -8,6 +8,7 @@ import ServiceManagement
     func resume(reply: @escaping (Bool) -> Void)
     func rebuild(reply: @escaping (Bool) -> Void)
     func status(reply: @escaping (String) -> Void)
+    func buildIdentity(reply: @escaping (String) -> Void)
     func refresh(path: String, reply: @escaping (Bool) -> Void)
 }
 
@@ -15,6 +16,13 @@ public enum SizeIndexService {
     public static let machServiceName = "com.bryanthaboi.betterfinder.indexer"
     public static var status: SMAppService.Status { if DemoEnvironment.isEnabled { return .notRegistered }; return SMAppService.agent(plistName: machServiceName + ".plist").status }
     public static func register() throws { guard !DemoEnvironment.isEnabled else { return }; try SMAppService.agent(plistName: machServiceName + ".plist").register() }
+    public static func buildIdentity(ofExecutable url: URL, bundleVersion: String?) -> String {
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let modified = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let size = (attributes?[.size] as? NSNumber)?.int64Value ?? 0
+        return "\(bundleVersion ?? "0")-\(Int64(modified))-\(size)"
+    }
+
     public static func unregister() async throws { guard !DemoEnvironment.isEnabled else { return }; try await SMAppService.agent(plistName: machServiceName + ".plist").unregister() }
 }
 
@@ -54,4 +62,31 @@ public final class SizeIndexClient: @unchecked Sendable {
     public func resume() async -> Bool { await call(fallback: false) { $0.resume(reply: $1) } }
     public func rebuild() async -> Bool { await call(fallback: false) { $0.rebuild(reply: $1) } }
     public func status() async -> String { await call(fallback: "unavailable") { $0.status(reply: $1) } }
+    public func buildIdentity() async -> String { await call(fallback: "") { $0.buildIdentity(reply: $1) } }
+
+    public func terminateService() async -> Bool {
+        guard !DemoEnvironment.isEnabled else { return false }
+        return await withCheckedContinuation { continuation in
+            let reply = IndexReply(continuation)
+            let connection = NSXPCConnection(machServiceName: SizeIndexService.machServiceName)
+            connection.remoteObjectInterface = NSXPCInterface(with: SizeIndexProtocol.self)
+            connection.invalidationHandler = { reply.finish(false) }
+            connection.resume()
+            let finish: (Bool) -> Void = { value in reply.finish(value); connection.invalidate() }
+            let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in finish(false) }) as? SizeIndexProtocol
+            proxy?.status { _ in
+                let pid = connection.processIdentifier
+                finish(pid > 0 && kill(pid, SIGTERM) == 0)
+            }
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) { finish(false) }
+        }
+    }
+
+    public func ensureCurrent(expected: String) async -> Bool {
+        let running = await buildIdentity()
+        guard running != expected else { return false }
+        guard await terminateService() else { return false }
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        return true
+    }
 }

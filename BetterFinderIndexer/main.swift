@@ -83,6 +83,7 @@ final class Indexer: NSObject, NSXPCListenerDelegate, SizeIndexProtocol {
     func resume(reply: @escaping (Bool) -> Void) { perform(reply) { self.paused = false } }
     func rebuild(reply: @escaping (Bool) -> Void) { perform(reply) { try self.writer.rebuild() } }
     func status(reply: @escaping (String) -> Void) { queue.async { reply("\(self.paused ? "paused" : "running"): \(self.writer.pendingCount) pending") } }
+    func buildIdentity(reply: @escaping (String) -> Void) { reply(launchIdentity) }
 }
 
 if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--scan" {
@@ -98,6 +99,11 @@ if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--scan" {
         exit(0)
     } catch { fputs("\(error)\n", stderr); exit(1) }
 }
+
+let launchIdentity = SizeIndexService.buildIdentity(
+    ofExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/BetterFinderIndexer"),
+    bundleVersion: Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+)
 
 setpriority(PRIO_DARWIN_PROCESS, 0, PRIO_DARWIN_BG)
 setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS, IOPOL_THROTTLE)

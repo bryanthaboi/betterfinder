@@ -29,7 +29,12 @@ final class SizeIndexController: SizeIndexControlling {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let paused = isIndexingPaused
         let client = client
+        let expected = SizeIndexService.buildIdentity(
+            ofExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/BetterFinderIndexer"),
+            bundleVersion: Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+        )
         Task.detached {
+            _ = await client.ensureCurrent(expected: expected)
             _ = await client.addRoot(path: home)
             if paused { _ = await client.pause() }
         }

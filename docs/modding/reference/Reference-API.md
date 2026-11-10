@@ -1,6 +1,6 @@
 # betterfinder mod API 1.0.0
 
-Generated from the ModKit catalog (digest `9559763a1aefb33f2a820c3a9e306ac20a4c4be46bfe0a3b75bb995c486dbdd3`). Manifest version 1, script format 1, toolchain `modkit/1.0.0 bfscript/1`.
+Generated from the ModKit catalog (digest `7aaaa7f3197a42e300f25a93e3b7ad809d5c4ce18d04bd68f5713712ce37b8b5`). Manifest version 1, script format 1, toolchain `modkit/1.0.0 bfscript/1`.
 
 ## Limits
 
@@ -435,7 +435,8 @@ Reference to a file. Optional fields are populated only when granted.
 | `name` | `string` | yes |  |
 | `kind` | `FileKind` | yes |  |
 | `path` | `string` | no | Requires ui.selection level paths or a root grant. |
-| `size` | `Int64String` | no | Requires metadata access. |
+| `size` | `Int64String` | no | Requires metadata access. For a folder this is the directory entry, not its contents. |
+| `totalSize` | `Int64String` | no | Size on disk of a folder's contents, present in column.values once the app has measured the folder. The column is asked again when the measurement lands. Requires metadata access. |
 | `modified` | `string` | no | ISO-8601; requires metadata access. |
 
 ### `DirectoryPage`

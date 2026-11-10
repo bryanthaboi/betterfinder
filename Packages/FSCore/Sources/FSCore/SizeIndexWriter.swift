@@ -158,8 +158,8 @@ public final class SizeIndexWriter {
         }) {
             guard unscanned > 0 else { return }
             try db.run("""
-            WITH RECURSIVE s(i) AS (SELECT ?1 UNION ALL SELECT d.inode FROM directories d JOIN s ON d.parent_inode=s.i WHERE d.volume_uuid=?2 AND d.unscanned>0)
-            INSERT INTO pending(path,recursive,priority) SELECT d.path,0,10 FROM s JOIN directories d ON d.volume_uuid=?2 AND d.inode=s.i WHERE d.self_pending=1 AND d.path IS NOT NULL LIMIT ?3
+            WITH RECURSIVE s(i) AS (SELECT ?1 UNION ALL SELECT d.inode FROM s CROSS JOIN directories d ON d.volume_uuid=?2 AND d.parent_inode=s.i WHERE d.unscanned>0)
+            INSERT INTO pending(path,recursive,priority) SELECT d.path,0,10 FROM s CROSS JOIN directories d ON d.volume_uuid=?2 AND d.inode=s.i WHERE d.self_pending=1 AND d.path IS NOT NULL LIMIT ?3
             ON CONFLICT(path) DO UPDATE SET priority=max(priority,excluded.priority)
             """, args: [.text(inode), .text(volume), .int(Self.prioritizeLimit)])
             return
@@ -356,10 +356,10 @@ public final class SizeIndexWriter {
     private func stageSubtreeMulti(_ volume: String, _ root: String) throws {
         try db.run("DELETE FROM temp.multi_work", args: [])
         try db.run("""
-        WITH RECURSIVE s(i) AS (SELECT ?1 UNION SELECT d.inode FROM directories d JOIN s ON d.parent_inode=s.i WHERE d.volume_uuid=?2)
+        WITH RECURSIVE s(i) AS (SELECT ?1 UNION SELECT d.inode FROM s CROSS JOIN directories d ON d.volume_uuid=?2 AND d.parent_inode=s.i)
         INSERT INTO temp.multi_work(inode,count,alloc,logical)
-        SELECT e.inode,count(*),coalesce(f.alloc,max(e.alloc)),coalesce(f.logical,max(e.logical)) FROM entries e JOIN s ON e.parent=s.i
-        LEFT JOIN files f ON f.volume_uuid=e.volume_uuid AND f.inode=e.inode WHERE e.volume_uuid=?2 AND e.multi=1 GROUP BY e.inode
+        SELECT e.inode,count(*),coalesce(f.alloc,max(e.alloc)),coalesce(f.logical,max(e.logical)) FROM s CROSS JOIN entries e ON e.volume_uuid=?2 AND e.parent=s.i
+        LEFT JOIN files f ON f.volume_uuid=e.volume_uuid AND f.inode=e.inode WHERE e.multi=1 GROUP BY e.inode
         """, args: [.text(root), .text(volume)])
     }
 

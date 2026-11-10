@@ -27,6 +27,11 @@ public protocol ModHostServices: AnyObject, Sendable {
     func confirmUnrestrictedExecution(modId: String, executable: String, arguments: [String]) async -> Bool
     func requestCredential(modId: String, name: String, destination: String) async -> String?
     func environment() async -> ModHostEnvironment
+    func measuredFolderSize(for url: URL) async -> Int64?
+}
+
+extension ModHostServices {
+    public func measuredFolderSize(for url: URL) async -> Int64? { nil }
 }
 
 public final class DenyingModHostServices: ModHostServices, @unchecked Sendable {

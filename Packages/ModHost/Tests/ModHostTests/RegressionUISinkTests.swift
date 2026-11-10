@@ -75,6 +75,16 @@ final class RegressionUISinkTests: XCTestCase {
         XCTAssertEqual(env.runtime.status(id: "bob.grow")?.version, "1.1.0")
     }
 
+    func testFileIdentityHandlesDevicesWithTheHighBitSet() {
+        for path in ["/dev", "/dev/null", "/", "/System/Volumes/Data/home", "/Volumes"] {
+            guard FileManager.default.fileExists(atPath: path) else { continue }
+            XCTAssertNotNil(ModFileIdentity.lstat(path), path)
+        }
+        let dev = ModFileIdentity.lstat("/dev")
+        let root = ModFileIdentity.lstat("/")
+        XCTAssertNotEqual(dev?.device, root?.device)
+    }
+
     func testShowPanelNeedsAGestureAndADeclaredPanel() async throws {
         let env = try await TestEnv()
         defer { Task { await env.cleanup() } }

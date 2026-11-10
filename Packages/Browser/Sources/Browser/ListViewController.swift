@@ -565,7 +565,26 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         scheduleColumnRequest()
     }
 
-    override func sizeDidChange(_ key: String) { reloadRow(key, column: Col.size) }
+    override func sizeDidChange(_ key: String) {
+        reloadRow(key, column: Col.size)
+        guard let pane, pane.sizes.results[key]?.isComplete == true, !registries.columns.orderedEntries.isEmpty else { return }
+        columnStore.invalidate(pathKeys: [key])
+        scheduleColumnRefresh()
+    }
+
+    private var columnRefreshScheduled = false
+
+    private func scheduleColumnRefresh() {
+        guard !columnRefreshScheduled else { return }
+        columnRefreshScheduled = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.columnRefreshScheduled = false
+                self.requestContributedColumns()
+            }
+        }
+    }
 
     private func reloadRow(_ key: String, column: NSUserInterfaceItemIdentifier) {
         guard let n = nodeByKey[key] else { return }
@@ -752,7 +771,10 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         case Col.created:
             tf.stringValue = it.dateCreated.map { Self.dateFormatter.string(from: $0) } ?? "--"
         case Col.size:
-            if it.isBrowsableFolder {
+            if pane?.location == .computer, let volume = VolumeInfo.details(for: it.url) {
+                tf.stringValue = volume.spaceText
+                tf.toolTip = volume.usedBytes.map { "\(SizeFormatter.string($0)) used" }
+            } else if it.isBrowsableFolder {
                 if let r = pane?.sizes.result(for: it.url) {
                     tf.stringValue = r.isComplete ? SizeFormatter.string(r.allocatedBytes) : "\(SizeFormatter.string(r.allocatedBytes))…"
                     tf.toolTip = "\(SizeFormatter.exact(r.logicalBytes)) logical · \(r.itemCount.formatted()) items"
@@ -765,7 +787,11 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
                 tf.toolTip = it.allocatedSize.map { "\(SizeFormatter.string($0)) on disk" }
             }
         case Col.kind:
-            tf.stringValue = it.kindDescription
+            if pane?.location == .computer, let volume = VolumeInfo.details(for: it.url) {
+                tf.stringValue = volume.kindText
+            } else {
+                tf.stringValue = it.kindDescription
+            }
         case Col.tags:
             let tags = it.tagNames
             if tags.isEmpty { tf.stringValue = "" } else {

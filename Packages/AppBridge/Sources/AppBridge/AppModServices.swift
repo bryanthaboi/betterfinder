@@ -6,6 +6,7 @@ public final class AppModServices: ModHostServices, @unchecked Sendable {
     public let environmentState: ModEnvironmentState
     public var modName: @Sendable (String) -> String
     public var defaults: UserDefaults = .standard
+    public var folderSize: (@Sendable (URL) async -> Int64?)?
     public static let alwaysAllowedExecutionKey = "modExecAlwaysAllowed"
     private let lock = NSLock()
     private var scriptedDestination: URL?
@@ -124,6 +125,8 @@ public final class AppModServices: ModHostServices, @unchecked Sendable {
     }
 
     public func environment() async -> ModHostEnvironment { environmentState.snapshot }
+
+    public func measuredFolderSize(for url: URL) async -> Int64? { await folderSize?(url) }
 
     @MainActor
     public static func present(_ alert: NSAlert) async -> NSApplication.ModalResponse {

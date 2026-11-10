@@ -27,6 +27,8 @@ final class InfoModel: ObservableObject {
     @Published var icon: NSImage?
     @Published var nameLocked = false
     @Published var redactedName: String?
+    @Published var volume: VolumeDetails?
+    private var volumeTimer: Timer?
     private var sizeTask: Task<Void, Never>?
     static var announce: (String) -> Void = { message in
         AccessibilityNotification.Announcement(message).post()
@@ -37,10 +39,47 @@ final class InfoModel: ObservableObject {
         reload()
     }
 
-    deinit { sizeTask?.cancel() }
+    deinit {
+        sizeTask?.cancel()
+        let timer = volumeTimer
+        if let timer { onMain { timer.invalidate() } }
+    }
+
+    private func reloadVolume(_ details: VolumeDetails, item: FileItem) {
+        volume = details
+        name = details.name
+        nameLocked = true
+        redactedName = nil
+        kind = details.kindText
+        icon = IconRaster.fileIcon(url.path, points: 48, scale: IconRaster.scale)
+        whereText = details.mountPoint
+        created = item.dateCreated
+        modified = item.dateModified
+        added = nil
+        tags = []
+        isFolder = true
+        sizeTask?.cancel()
+        sizeText = details.usedBytes.map { "\(SizeFormatter.string($0)) used" } ?? "—"
+        sizeDetail = details.spaceText
+        guard volumeTimer == nil else { return }
+        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let fresh = VolumeInfo.details(for: self.url), fresh != self.volume else { return }
+                self.volume = fresh
+                self.sizeText = fresh.usedBytes.map { "\(SizeFormatter.string($0)) used" } ?? "—"
+                self.sizeDetail = fresh.spaceText
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        volumeTimer = timer
+    }
 
     func reload() {
         guard let item = DirectoryLister.item(for: url) else { message = "This item no longer exists."; return }
+        if url.path == "/" || VolumeInfo.isVolumeRoot(url), let details = VolumeInfo.details(for: url) {
+            reloadVolume(details, item: item)
+            return
+        }
         let home = HomeLabel.display
         nameLocked = home.isActive && home.isHome(url.path)
         redactedName = HomeLabel.isRedacted(url) ? item.name : nil
@@ -203,30 +242,47 @@ struct InfoView: View {
                     .accessibilityAddTraits(.updatesFrequently)
             }
             Divider()
+            if let volume = model.volume, let fraction = volume.usedFraction {
+                ProgressView(value: fraction)
+                    .accessibilityLabel("Space used")
+                    .accessibilityValue("\(Int((fraction * 100).rounded())) percent, \(volume.spaceText)")
+            }
             Grid(alignment: .leading, horizontalSpacing: Spacing.s, verticalSpacing: Spacing.xs) {
-                row("Size", model.sizeText, detail: model.sizeDetail)
-                row("Where", model.whereText)
+                if let volume = model.volume {
+                    if let total = volume.totalBytes { row("Capacity", SizeFormatter.string(total), detail: SizeFormatter.exact(total)) }
+                    if let free = volume.availableBytes { row("Available", SizeFormatter.string(free), detail: SizeFormatter.exact(free)) }
+                    if let used = volume.usedBytes { row("Used", SizeFormatter.string(used), detail: volume.usedFraction.map { "\(Int(($0 * 100).rounded()))% of capacity" } ?? "") }
+                    if !volume.format.isEmpty { row("Format", volume.format) }
+                    row("Mounted at", volume.mountPoint)
+                    if !volume.device.isEmpty { row("Device", volume.device) }
+                    row("Access", volume.isReadOnly ? "Read only" : "Read and write", detail: volume.isEjectable ? "Can be ejected" : "")
+                } else {
+                    row("Size", model.sizeText, detail: model.sizeDetail)
+                    row("Where", model.whereText)
+                }
                 if let d = model.dimensions { row("Dimensions", d) }
                 if let d = model.created { row("Created", Self.dateFormatter.string(from: d)) }
                 if let d = model.modified { row("Modified", Self.dateFormatter.string(from: d)) }
                 if let d = model.added { row("Added", Self.dateFormatter.string(from: d)) }
             }
-            Divider()
-            VStack(alignment: .leading, spacing: Spacing.xs) {
-                Text("Tags").font(.headline).accessibilityAddTraits(.isHeader)
-                FlowTags(tags: model.tags) { t in model.setTags(model.tags.filter { $0 != t }) }
-                HStack {
-                    TextField("Add tag", text: $newTag)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit(addTag)
-                        .accessibilityLabel("Add tag")
-                    Menu("Choose") {
-                        ForEach(MainActor.assumeIsolated { TagColors.systemTags } + BrowserDefaults.knownTags.filter { !TagColors.systemTags.contains($0) }, id: \.self) { t in
-                            Button(t) { if !model.tags.contains(t) { model.setTags(model.tags + [t]) } }
+            if model.volume == nil {
+                Divider()
+                VStack(alignment: .leading, spacing: Spacing.xs) {
+                    Text("Tags").font(.headline).accessibilityAddTraits(.isHeader)
+                    FlowTags(tags: model.tags) { t in model.setTags(model.tags.filter { $0 != t }) }
+                    HStack {
+                        TextField("Add tag", text: $newTag)
+                            .textFieldStyle(.roundedBorder)
+                            .onSubmit(addTag)
+                            .accessibilityLabel("Add tag")
+                        Menu("Choose") {
+                            ForEach(MainActor.assumeIsolated { TagColors.systemTags } + BrowserDefaults.knownTags.filter { !TagColors.systemTags.contains($0) }, id: \.self) { t in
+                                Button(t) { if !model.tags.contains(t) { model.setTags(model.tags + [t]) } }
+                            }
                         }
+                        .fixedSize()
+                        .accessibilityLabel("Choose a tag")
                     }
-                    .fixedSize()
-                    .accessibilityLabel("Choose a tag")
                 }
             }
             if !model.isFolder && !model.apps.isEmpty {

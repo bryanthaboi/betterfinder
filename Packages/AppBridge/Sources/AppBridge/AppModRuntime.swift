@@ -1,5 +1,6 @@
 import AppKit
 import Browser
+import FSCore
 import FileOps
 import Foundation
 import Integration
@@ -120,6 +121,10 @@ public final class AppModRuntime {
         forwarder = ModEventForwarder(registries: configuration.registries, environment: environment)
         services = AppModServices(environment: environment)
         services.defaults = configuration.defaults
+        services.folderSize = { url in
+            guard let size = await SizeEngine.shared.cachedSize(of: url), size.isComplete || size.isPartial else { return nil }
+            return size.allocatedBytes
+        }
         index = ModIndexBridge(paths: configuration.paths, url: configuration.indexURL)
         controller = try Self.makeController(configuration, services: services)
         services.modName = { [weak controller] id in controller?.status(id: id)?.name ?? id }
