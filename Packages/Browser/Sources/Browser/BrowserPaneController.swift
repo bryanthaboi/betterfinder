@@ -8,6 +8,8 @@ import Theming
 @MainActor
 final class BrowserPaneController: NSViewController, NSMenuItemValidation, ThemedSurface {
     private(set) var location: BrowserLocation
+    private var patternBuffer = ""
+    private var patternTyped = Date.distantPast
     private(set) var model: FolderModel
     let sizes = SizeCoordinator()
     private(set) var backStack: [BrowserDestination] = []
@@ -826,8 +828,60 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     }
 
 
+    var itemFilter: ItemFilter? { model.filter }
+
+    func setItemFilter(_ filter: ItemFilter?) {
+        guard providedLocation == nil, aux == nil else { return }
+        model.setFilter(filter)
+        updateStatus()
+        let message = filter.map { "Showing \($0.title), \(model.items.count) items" } ?? "Filter cleared, \(model.items.count) items"
+        NSAccessibility.post(element: view, notification: .announcementRequested, userInfo: [.announcement: message, .priority: NSAccessibilityPriorityLevel.medium.rawValue])
+    }
+
+    @objc func clearItemFilter(_ sender: Any?) {
+        patternBuffer = ""
+        setItemFilter(nil)
+    }
+
+    @objc func filterByKind(_ sender: NSMenuItem) {
+        guard let kind = sender.representedObject as? String else { return }
+        patternBuffer = ""
+        setItemFilter(ItemFilter(kind: kind))
+    }
+
+    private func handlePatternTyping(_ event: NSEvent) -> Bool {
+        guard providedLocation == nil, aux == nil else { return false }
+        let flags = event.modifierFlags.intersection([.command, .option, .control])
+        guard flags.isEmpty else { return false }
+        let typing = !patternBuffer.isEmpty && Date().timeIntervalSince(patternTyped) < 1.5
+        if event.keyCode == 51, typing {
+            patternBuffer.removeLast()
+            patternTyped = Date()
+            setItemFilter(patternBuffer.isEmpty ? nil : ItemFilter(pattern: patternBuffer))
+            return true
+        }
+        if [36, 76].contains(event.keyCode), typing {
+            patternBuffer = ""
+            return true
+        }
+        guard let chars = event.characters, chars.count == 1, let scalar = chars.unicodeScalars.first,
+              scalar.value >= 0x20, scalar.value != 0x7F, !(0xF700...0xF8FF).contains(scalar.value) else { return false }
+        if typing {
+            patternBuffer += chars
+        } else if ItemFilter.isPatternStart(chars) {
+            patternBuffer = chars
+        } else {
+            patternBuffer = ""
+            return false
+        }
+        patternTyped = Date()
+        setItemFilter(ItemFilter(pattern: patternBuffer))
+        return true
+    }
+
     func handleKeyDown(_ event: NSEvent) -> Bool {
         if view.window?.firstResponder is NSText { return false }
+        if handlePatternTyping(event) { return true }
         let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
         let windowsKeys = BrowserDefaults.returnOpens
         switch event.keyCode {
@@ -862,6 +916,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         case 97 where flags.isEmpty:
             moveToOtherPane(nil); return true
         case 53 where flags.isEmpty:
+            if model.filter != nil { clearItemFilter(nil); return true }
             if providedLocation?.kind == .search { endProviderSearch(); return true }
             if case .search = location { endSearch(); return true }
             return false

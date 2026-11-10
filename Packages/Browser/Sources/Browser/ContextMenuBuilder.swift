@@ -5,6 +5,12 @@ import FSCore
 enum ContextMenuBuilder {
     static func menu(for pane: BrowserPaneController) -> NSMenu {
         let menu = builtInMenu(for: pane)
+        if let filter = pane.itemFilter {
+            let clear = NSMenuItem(title: "Clear Filter (\(filter.title))", action: #selector(BrowserPaneController.clearItemFilter(_:)), keyEquivalent: "")
+            clear.target = pane
+            menu.insertItem(clear, at: 0)
+            menu.insertItem(.separator(), at: 1)
+        }
         let context = BrowserContext(pane: pane)
         let extra = pane.registries.contextMenu.menuItems(for: context, registries: pane.registries)
         guard !extra.isEmpty else { return menu }

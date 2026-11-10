@@ -16,6 +16,9 @@ final class FolderModel {
 
     let location: BrowserLocation
     private(set) var items: [FileItem] = []
+    private var unfiltered: [FileItem] = []
+    private(set) var filter: ItemFilter?
+    var filteredOutCount: Int { filter == nil ? 0 : unfiltered.count - items.count }
     private(set) var hiddenCount = 0
     private(set) var isLoading = false
     private(set) var error: Error?
@@ -131,8 +134,15 @@ final class FolderModel {
 
     func sortedItems(_ input: [FileItem]) -> [FileItem] { sorter.sorted(input) }
 
+    func setFilter(_ newFilter: ItemFilter?) {
+        guard newFilter != filter else { return }
+        filter = newFilter
+        items = newFilter?.apply(unfiltered) ?? unfiltered
+        emit(.reset)
+    }
+
     private func resort() {
-        let snapshot = items
+        let snapshot = unfiltered
         let s = sorter
         sortGeneration += 1
         let sg = sortGeneration
@@ -140,8 +150,9 @@ final class FolderModel {
         DirectoryStream.queue.async { [weak self] in
             let sorted = s.sorted(snapshot)
             onMain {
-                guard let self, self.generation == gen, self.sortGeneration == sg, self.items.count == snapshot.count else { return }
-                self.items = sorted
+                guard let self, self.generation == gen, self.sortGeneration == sg, self.unfiltered.count == snapshot.count else { return }
+                self.unfiltered = sorted
+                self.items = self.filter?.apply(sorted) ?? sorted
                 self.emit(.reset)
             }
         }
@@ -162,8 +173,10 @@ final class FolderModel {
         let location = self.location
         let showHidden = BrowserDefaults.showHidden
         let sorter = self.sorter
+        let activeFilter = filter
         if isInitial {
             items = []
+            unfiltered = []
             hiddenCount = 0
             error = nil
             emit(.reset)
@@ -195,13 +208,15 @@ final class FolderModel {
             if token.isCancelled { return }
             let sorted = sorter.sorted(result.visible)
             let hidden = result.hiddenCount
-            let diff = isInitial ? nil : ListDiff.compute(old: baseline, new: sorted)
+            let shown = activeFilter?.apply(sorted) ?? sorted
+            let diff = isInitial ? nil : ListDiff.compute(old: baseline, new: shown)
             let finalError = listError
             onMain {
                 guard let self, self.generation == gen, !token.isCancelled else { return }
                 self.error = finalError
-                if let diff, self.items == baseline {
-                    self.items = sorted
+                if let diff, self.items == baseline, self.filter == activeFilter {
+                    self.unfiltered = sorted
+                    self.items = shown
                     self.hiddenCount = hidden
                     if !diff.isEmpty { self.emit(diff.size > 2000 ? .reset : .diff(diff)) }
                 } else {
@@ -214,8 +229,10 @@ final class FolderModel {
         }
     }
 
-    private func apply(_ sorted: [FileItem], hidden: Int) {
+    private func apply(_ all: [FileItem], hidden: Int) {
         hiddenCount = hidden
+        unfiltered = all
+        let sorted = filter?.apply(all) ?? all
         let old = items
         items = sorted
         if old.isEmpty || sorted.isEmpty || abs(sorted.count - old.count) > 2000 {
@@ -233,6 +250,7 @@ final class FolderModel {
         self.token = token
         generation += 1
         items = []
+        unfiltered = []
         hiddenCount = 0
         searchPaths = []
         searchAccumulated = []
@@ -289,7 +307,7 @@ final class FolderModel {
                 guard let self else { return }
                 guard self.generation == gen, !token.isCancelled else { return }
                 self.searchSortInFlight = false
-                if sorted.count >= self.items.count { self.apply(sorted, hidden: 0) }
+                if sorted.count >= self.unfiltered.count { self.apply(sorted, hidden: 0) }
                 if self.searchSortDirty { self.scheduleSearchSort(gen: gen, token: token) }
             }
         }

@@ -861,7 +861,19 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
             outline.deselectAll(nil)
         }
         guard let pane else { return nil }
-        return ContextMenuBuilder.menu(for: pane)
+        let menu = ContextMenuBuilder.menu(for: pane)
+        let column = outline.column(at: point)
+        if row >= 0, column >= 0, outline.tableColumns[column].identifier == Col.kind, let item = (outline.item(atRow: row) as? FileNode)?.item {
+            let kind = item.kindDescription
+            if !kind.isEmpty, pane.itemFilter?.rule != .kind(kind) {
+                let entry = NSMenuItem(title: "Filter by “\(kind)”", action: #selector(BrowserPaneController.filterByKind(_:)), keyEquivalent: "")
+                entry.target = pane
+                entry.representedObject = kind
+                menu.insertItem(entry, at: 0)
+                menu.insertItem(.separator(), at: 1)
+            }
+        }
+        return menu
     }
 }
 

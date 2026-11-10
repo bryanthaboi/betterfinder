@@ -341,6 +341,9 @@ final class SizeSummaryDriver: StatusBarSegmentDriver {
             if model.hiddenCount > 0 {
                 s += BrowserDefaults.showHidden ? " (incl. \(model.hiddenCount.formatted()) hidden)" : " (\(model.hiddenCount.formatted()) hidden)"
             }
+            if let filter = model.filter {
+                s += " · showing \(filter.title), \(model.filteredOutCount.formatted()) filtered out (esc to clear)"
+            }
             if let notice = model.searchNotice, !notice.isEmpty {
                 s += " · \(notice)"
             } else if let url = location.url, let free = available(for: url) {
