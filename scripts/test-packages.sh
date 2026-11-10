@@ -6,12 +6,23 @@ JOBS="${TEST_JOBS:-4}"
 SCRATCH="${SPM_SCRATCH_ROOT:-}"
 
 if [ "${1:-}" = "--one" ]; then
-  p="$2"
-  logs="$3"
+  phase="$2"
+  p="$3"
+  logs="$4"
   args=(--package-path "$ROOT/Packages/$p")
   [ -n "$SCRATCH" ] && args+=(--scratch-path "$SCRATCH/$p")
+  [ -f "$logs/$p.failed" ] && exit 0
   start=$SECONDS
-  if swift test "${args[@]}" > "$logs/$p.log" 2>&1; then
+  if [ "$phase" = "build" ]; then
+    if swift build --build-tests "${args[@]}" > "$logs/$p.log" 2>&1; then
+      echo "built $p $((SECONDS - start))s"
+    else
+      touch "$logs/$p.failed"
+      echo "FAIL $p build $((SECONDS - start))s"
+    fi
+    exit 0
+  fi
+  if swift test --skip-build "${args[@]}" >> "$logs/$p.log" 2>&1; then
     echo "ok   $p $((SECONDS - start))s"
   else
     touch "$logs/$p.failed"
@@ -34,7 +45,9 @@ else
 fi
 
 start=$SECONDS
-printf '%s\n' "${packages[@]}" | xargs -P "$JOBS" -I{} "$0" --one {} "$LOGS"
+printf '%s\n' "${packages[@]}" | xargs -P "$JOBS" -I{} "$0" --one build {} "$LOGS"
+echo "builds finished in $((SECONDS - start))s"
+printf '%s\n' "${packages[@]}" | xargs -P "$JOBS" -I{} "$0" --one test {} "$LOGS"
 
 failed=()
 for p in "${packages[@]}"; do
