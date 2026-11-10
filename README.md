@@ -7,43 +7,38 @@
 
 **finder but better.** native macos file manager. list view by default, real folder sizes, space to preview, an up button that actually works, and themes that go all the way back to system 7.
 
-[![ci](https://github.com/bryanthaboi/betterfinder/actions/workflows/ci.yml/badge.svg)](https://github.com/bryanthaboi/betterfinder/actions/workflows/ci.yml)
-[![release](https://github.com/bryanthaboi/betterfinder/actions/workflows/release.yml/badge.svg)](https://github.com/bryanthaboi/betterfinder/actions/workflows/release.yml)
+[![release](https://github.com/bryanthaboi/betterfinder/actions/workflows/release.yml/badge.svg)](https://github.com/bryanthaboi/betterfinder/releases/latest)
 ![macOS](https://img.shields.io/badge/macOS-14%2B%20apple%20silicon-000000?logo=apple&logoColor=white)
-![swift](https://img.shields.io/badge/swift-6.2-F05138?logo=swift&logoColor=white)
-![appkit](https://img.shields.io/badge/ui-AppKit-1575F9)
-![signed](https://img.shields.io/badge/notarized-developer%20id-success)
-![themes](https://img.shields.io/badge/themes-9%20built%20in-blueviolet)
-![status](https://img.shields.io/badge/status-early-orange)
 
-<img src="docs/assets/themes/preview-modern.png" width="720" alt="betterfinder modern theme">
+<img src="docs/assets/screenshot.png" width="720" alt="betterfinder showing a folder with sizes next to every subfolder">
 
 </div>
 
----
-
-## why
-
-finder is slow, forgets ur view settings, wont show folder sizes, has no real cut/paste, no path bar u can type in, and the up button just... isnt there. this fixes that.
+[download the latest release](https://github.com/bryanthaboi/betterfinder/releases/latest), open the dmg, drag it to applications.
 
 ## what it does
 
-| | |
-|---|---|
-| **list view default** | detailed columns out of the box, sort + layout stick everywhere, never writes `.DS_Store` |
-| **folder sizes** | shows in the size column + status bar. backed by a tiny background indexer (~20 MB) so the app itself stays light |
-| **space = quick look** | real system quick look, arrow keys follow along, works in list/column/icon views |
-| **up button that always works** | <kbd>⌘</kbd><kbd>↑</kbd> from anywhere, incl search results + recents. selects where u came from |
-| **path bar u can type in** | <kbd>⌘</kbd><kbd>L</kbd>, tab completion, `~`, paste a `file://` url |
-| **real cut + paste** | <kbd>⌘</kbd><kbd>X</kbd> then <kbd>⌘</kbd><kbd>V</kbd> moves it. like a normal computer |
-| **tabs + dual pane** | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd> for two panes, <kbd>F5</kbd>/<kbd>F6</kbd> copy/move across |
-| **copy queue** | pause, resume, retry, conflict dialog w apply-to-all, undo everything (replace sends the old copy to the trash so undo can bring it back), optional checksum verify |
-| **put back that works** | own trash journal so put back doesnt randomly break. file → recently trashed… lists it all |
-| **eject tells u who's blocking** | names the app holding the drive + offers to quit it |
-| **sftp + s3** | <kbd>⌘</kbd><kbd>K</kbd> to connect. browse, copy, move between local, sftp, s3 (r2/minio too). moves verify before deleting |
-| **search this folder** | <kbd>⌘</kbd><kbd>F</kbd> searches where u are, not "this mac" |
-| **themes** | 9 built in, every one editable live. fork, tweak, export as `.bftheme` |
-| **replaces finder** | one switch makes "show in finder" + folder opens go here. one button to undo it |
+- **list view default.** detailed columns out of the box, sort + layout stick everywhere, never writes `.DS_Store`
+- **folder sizes.** right in the size column, kept up to date by a small background indexer so they dont recount every visit
+- **space = quick look.** real system quick look, arrow keys follow along, works in list/column/icon views
+- **up button that always works.** <kbd>⌘</kbd><kbd>↑</kbd> from anywhere, incl search results + recents. selects where u came from
+- **path bar u can type in.** <kbd>⌘</kbd><kbd>L</kbd>, tab completion, `~`, paste a `file://` url
+- **real cut + paste.** <kbd>⌘</kbd><kbd>X</kbd> then <kbd>⌘</kbd><kbd>V</kbd> moves it. like a normal computer
+- **filter as u type.** type `*.zip` and the folder narrows instantly, or right click a kind → filter by. <kbd>esc</kbd> clears it
+- **search this folder.** <kbd>⌘</kbd><kbd>F</kbd> searches where u are, not "this mac"
+- **tabs + dual pane.** <kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd> for two panes, <kbd>F5</kbd>/<kbd>F6</kbd> copy/move across. folders can open in tabs like a browser if u want
+- **right click that helps.** new ▸ and open in terminal are always there, w the terminal app of ur choice
+- **get info + mini info.** hold <kbd>⌥</kbd> for a small floating card. drives show capacity + whats used
+- **copy queue.** pause, resume, retry, conflict dialog w apply-to-all, undo everything, optional checksum verify
+- **put back that works.** own trash journal so put back doesnt randomly break. file → recently trashed… lists it all
+- **eject tells u who's blocking.** names the app holding the drive + offers to quit it
+- **sftp + s3.** <kbd>⌘</kbd><kbd>K</kbd> to connect. browse, copy, move between local, sftp, s3 (r2/minio too). moves verify before deleting
+- **hide ur home name.** show it real, as `~`, custom, or blurred. for screenshots + streams
+- **status bar ur way.** reorder or turn off any item, incl ones from mods
+- **themes.** 9 built in, every one editable live. fork, tweak, export as `.bftheme`
+- **mods.** panels, columns, toolbar buttons, commands and more. see below
+- **replaces finder.** one switch makes "show in finder" + folder opens go here. one button to undo it
+- **updates itself.** checks for new releases and swaps itself in
 
 ## themes
 
@@ -67,15 +62,13 @@ every built-in is fully customizable in settings → appearance. edits fork the 
 </tr>
 </table>
 
-> [!NOTE]
-> retro themes are drawn in code. no apple or microsoft fonts, icons or sounds are shipped.
+retro themes are drawn in code. no apple or microsoft fonts, icons or sounds are shipped.
 
 ## replacing finder
 
-> [!IMPORTANT]
-> macos doesnt let anything fully replace finder. heres what actually moves over:
+macos doesnt let anything fully replace finder. heres what actually moves over:
 
-| | |
+| what | moves over |
 |---|:---:|
 | "show in finder" from other apps (vs code, chrome, etc) | yes |
 | `open ~/some/folder` + apps opening folders | yes |
@@ -83,20 +76,7 @@ every built-in is fully customizable in settings → appearance. edits fork the 
 | desktop icons, open/save dialogs, airdrop | no |
 
 
-## how its built
-
-```mermaid
-flowchart LR
-  app[betterfinder.app] --> browser[Browser<br/>windows · views · quick look]
-  browser --> fscore[FSCore<br/>getattrlistbulk lister]
-  browser --> fileops[FileOps<br/>copy queue · trash · eject]
-  browser --> theming[Theming<br/>themes · chrome · editor]
-  app --> settings[Settings<br/>prefs · onboarding]
-  settings --> integration[Integration<br/>default handler · perms · hotkey]
-  fscore -. sqlite read-only .-> idx[(size index)]
-  helper[BetterFinderIndexer<br/>launch agent · bg priority] --> idx
-  fscore -. xpc .-> helper
-```
+## more
 
 <details>
 <summary><b>build it urself</b></summary>
@@ -119,26 +99,22 @@ opt-in in settings. enter opens, f2 renames, backspace goes up, f5 refreshes, fo
 
 </details>
 
-## docs
-
-- [modding guide](https://github.com/bryanthaboi/betterfinder/wiki/Modding) · [spacing](docs/design/spacing.md)
-- [building + ci](https://github.com/bryanthaboi/betterfinder/wiki/Building)
-
 ## mods
 
-everything is moddable: panels, slide-outs, toolbar buttons, columns, previewers, sidebar sections, commands, file op hooks, themes, icon sets. mods run sandboxed, get checked before they turn on, and any error means they dont.
+everything is moddable: panels, slide-outs, toolbar buttons, columns, previewers, sidebar sections, commands, file op hooks, themes, icon sets. mods run sandboxed and get checked before they turn on. anything that fails the check stays off.
 
 write em in `bfscript` (typed json), typescript or js. browse + install from settings → mods, or from the [mod index](https://github.com/bryanthaboi/betterfinder-mod-index).
 
 | mod | what |
 |---|---|
-| [weather-panel](https://github.com/bryanthaboi/betterfinder-mod-weather-panel) | slide-out weather for ur city |
+| [git-panel](https://github.com/bryanthaboi/betterfinder-mod-git-panel) | branch in the status bar, side panel w status + branch switcher, right click → gitignore or hide from git |
+| [weather-panel](https://github.com/bryanthaboi/betterfinder-mod-weather-panel) | temp in the status bar, slide-out forecast for ur city |
 | [drop-stack](https://github.com/bryanthaboi/betterfinder-mod-drop-stack) | path finder style shelf, stash files then drop em somewhere |
 | [folder-notes](https://github.com/bryanthaboi/betterfinder-mod-folder-notes) | sticky notes per folder |
-| [size-heat](https://github.com/bryanthaboi/betterfinder-mod-size-heat) | `▁▂▃▅▇` size bars column |
+| [size-heat](https://github.com/bryanthaboi/betterfinder-mod-size-heat) | size bars column on a fixed scale, folders included |
 | [trash-cat](https://github.com/bryanthaboi/betterfinder-mod-trash-cat) | a cat in ur status bar that eats ur trash |
 
-theres a built in mcp server too (mods → start mcp server) so a client can scaffold, test, hot load, package and pr a mod for u.
+turn on developer mode in settings → mods and u get a built in mcp server, so an mcp client can scaffold, test, hot load and package a mod for u. docs live in the [wiki](https://github.com/bryanthaboi/betterfinder/wiki).
 
 <details>
 <summary><b>make one</b></summary>
