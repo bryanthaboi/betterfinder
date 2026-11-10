@@ -36,29 +36,18 @@ public protocol UpdateInstalling: Sendable {
 public final class UpdateInstaller: UpdateInstalling, @unchecked Sendable {
     public static let relaunchScript = """
     trap '' HUP
-    PID="$1"; NEW="$2"; DEST="$3"; STAGE="$4"; LOG="$5"
+    PID="$1"; DEST="$2"; OLD="$3"; LOG="$4"
     OPENER="${BF_OPEN:-/usr/bin/open}"
     exec >>"$LOG" 2>&1
-    echo "$(date) waiting for $PID"
+    echo "$(date) installed $DEST, waiting for $PID"
     i=0
     while kill -0 "$PID" 2>/dev/null; do
       i=$((i+1))
-      if [ "$i" -gt 1500 ]; then echo "timed out waiting for app to quit"; rm -rf "$STAGE"; exit 1; fi
+      if [ "$i" -gt 1500 ]; then echo "timed out waiting for app to quit"; exit 1; fi
       sleep 0.2
     done
-    PARENT="$(dirname "$DEST")"
-    NAME="$(basename "$DEST" .app)"
-    TMP="$PARENT/.$NAME.update.$$.app"
-    TRASH="$HOME/.Trash"
-    mkdir -p "$TRASH"
-    OLD="$TRASH/$NAME $(date +%Y-%m-%d-%H%M%S).app"
-    rm -rf "$TMP"
-    if ! /usr/bin/ditto "$NEW" "$TMP"; then echo "ditto failed"; rm -rf "$TMP"; "$OPENER" "$DEST"; exit 1; fi
-    if ! mv "$DEST" "$OLD"; then echo "could not move old app aside"; rm -rf "$TMP"; "$OPENER" "$DEST"; exit 1; fi
-    if ! mv "$TMP" "$DEST"; then echo "swap failed, restoring"; mv "$OLD" "$DEST"; rm -rf "$TMP"; "$OPENER" "$DEST"; exit 1; fi
-    /usr/bin/xattr -dr com.apple.quarantine "$DEST" 2>/dev/null
-    rm -rf "$STAGE"
-    echo "$(date) installed, relaunching"
+    if [ -n "$OLD" ] && [ -e "$OLD" ]; then rm -rf "$OLD" || echo "could not remove $OLD"; fi
+    echo "$(date) relaunching"
     "$OPENER" "$DEST"
     """
 
@@ -69,6 +58,8 @@ public final class UpdateInstaller: UpdateInstalling, @unchecked Sendable {
     private let tokenProvider: (@Sendable () -> String?)?
     private let sessionConfiguration: URLSessionConfiguration
     private let checkNotarization: Bool
+    private let checkSignature: Bool
+    private let trashPreviousBundle: Bool
 
     public init(
         verifier: UpdateVerifier,
@@ -77,7 +68,9 @@ public final class UpdateInstaller: UpdateInstalling, @unchecked Sendable {
         cachesDirectory: URL = UpdateInstaller.defaultCachesDirectory(),
         bundleURL: URL = Bundle.main.bundleURL,
         processID: Int32 = ProcessInfo.processInfo.processIdentifier,
-        checkNotarization: Bool = true
+        checkNotarization: Bool = true,
+        checkSignature: Bool = true,
+        trashPreviousBundle: Bool = true
     ) {
         self.verifier = verifier
         self.tokenProvider = tokenProvider
@@ -86,6 +79,8 @@ public final class UpdateInstaller: UpdateInstalling, @unchecked Sendable {
         self.bundleURL = bundleURL
         self.processID = processID
         self.checkNotarization = checkNotarization
+        self.checkSignature = checkSignature
+        self.trashPreviousBundle = trashPreviousBundle
     }
 
     public static func defaultCachesDirectory() -> URL {
@@ -130,7 +125,7 @@ public final class UpdateInstaller: UpdateInstalling, @unchecked Sendable {
 
         let unpacked = stage.appendingPathComponent("unpacked", isDirectory: true)
         let app = try unpack(zip: zip, into: unpacked)
-        try verifier.verify(appURL: app, release: release, checkNotarization: checkNotarization)
+        try verifier.verify(appURL: app, release: release, checkNotarization: checkNotarization, checkSignature: checkSignature)
         try? fm.removeItem(at: zip)
         return PreparedUpdate(release: release, appURL: app, stagingDirectory: cachesDirectory)
     }
@@ -151,24 +146,73 @@ public final class UpdateInstaller: UpdateInstalling, @unchecked Sendable {
         return app
     }
 
-    public func relaunchArguments(for prepared: PreparedUpdate, logURL: URL? = nil) -> [String] {
+    public var incomingBundleURL: URL {
+        let name = bundleURL.deletingPathExtension().lastPathComponent
+        return bundleURL.deletingLastPathComponent().appendingPathComponent(".\(name).update.\(processID).app", isDirectory: true)
+    }
+
+    public var previousBundleURL: URL {
+        let name = bundleURL.deletingPathExtension().lastPathComponent
+        return bundleURL.deletingLastPathComponent().appendingPathComponent("\(name) (previous).app", isDirectory: true)
+    }
+
+    public func replaceBundle(with prepared: PreparedUpdate) throws -> URL {
+        let fm = FileManager.default
+        let incoming = incomingBundleURL
+        let previous = previousBundleURL
+        try? fm.removeItem(at: incoming)
+        do {
+            try fm.copyItem(at: prepared.appURL, to: incoming)
+        } catch {
+            try? fm.removeItem(at: incoming)
+            throw UpdateError.installFailed(error.localizedDescription)
+        }
+        do {
+            try verifier.verify(appURL: incoming, release: prepared.release, checkNotarization: false, checkSignature: checkSignature)
+        } catch {
+            try? fm.removeItem(at: incoming)
+            throw error
+        }
+        try? fm.removeItem(at: previous)
+        do {
+            try fm.moveItem(at: bundleURL, to: previous)
+        } catch {
+            try? fm.removeItem(at: incoming)
+            throw UpdateError.installFailed(error.localizedDescription)
+        }
+        do {
+            try fm.moveItem(at: incoming, to: bundleURL)
+        } catch {
+            let restored = (try? fm.moveItem(at: previous, to: bundleURL)) != nil
+            try? fm.removeItem(at: incoming)
+            let detail = restored ? error.localizedDescription : "\(error.localizedDescription) The previous version is at \(previous.path)."
+            throw UpdateError.installFailed(detail)
+        }
+        _ = UpdateVerifier.run("/usr/bin/xattr", ["-dr", "com.apple.quarantine", bundleURL.path])
+        return previous
+    }
+
+    public func relaunchArguments(removing previous: URL?, logURL: URL? = nil) -> [String] {
         let log = logURL ?? cachesDirectory.deletingLastPathComponent().appendingPathComponent("update.log")
-        return ["-c", Self.relaunchScript, "betterfinder-update", String(processID), prepared.appURL.path, bundleURL.path, prepared.stagingDirectory.path, log.path]
+        return ["-c", Self.relaunchScript, "betterfinder-update", String(processID), bundleURL.path, previous?.path ?? "", log.path]
     }
 
     public func install(_ prepared: PreparedUpdate) throws {
         try InstallLocation.validate(bundleURL: bundleURL)
         let fm = FileManager.default
+        let previous = try replaceBundle(with: prepared)
+        if trashPreviousBundle { try? fm.trashItem(at: previous, resultingItemURL: nil) }
+        try? fm.removeItem(at: prepared.stagingDirectory)
         try? fm.createDirectory(at: cachesDirectory.deletingLastPathComponent(), withIntermediateDirectories: true)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = relaunchArguments(for: prepared)
+        process.arguments = relaunchArguments(removing: fm.fileExists(atPath: previous.path) ? previous : nil)
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         process.qualityOfService = .userInitiated
         do { try process.run() } catch {
-            throw UpdateError.installFailed(error.localizedDescription)
+            throw UpdateError.installFailed("the new version is in place but betterfinder couldn't relaunch itself (\(error.localizedDescription)). Quit and reopen it to finish.")
         }
     }
 }

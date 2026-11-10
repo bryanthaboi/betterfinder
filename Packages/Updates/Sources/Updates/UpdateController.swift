@@ -162,12 +162,22 @@ public final class UpdateController: ObservableObject {
                     }
                 }
                 state = .installing(release)
-                try installer.install(prepared)
-                terminateHandler()
+                try await Task.detached(priority: .userInitiated) { try installer.install(prepared) }.value
+                await requestTermination()
             } catch is CancellationError {
                 state = .available(release)
             } catch {
                 state = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    private func requestTermination() async {
+        let handler = terminateHandler
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            RunLoop.main.perform(inModes: [.common]) {
+                MainActor.assumeIsolated { handler() }
+                continuation.resume()
             }
         }
     }

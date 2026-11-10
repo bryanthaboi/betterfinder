@@ -20,7 +20,9 @@ final class InstallerTests: XCTestCase {
             cachesDirectory: caches ?? tmp.appendingPathComponent("caches/Updates"),
             bundleURL: bundle,
             processID: pid,
-            checkNotarization: false
+            checkNotarization: false,
+            checkSignature: false,
+            trashPreviousBundle: false
         )
     }
 
@@ -92,23 +94,44 @@ final class InstallerTests: XCTestCase {
 
     func testRelaunchArguments() throws {
         let bundle = tmp.appendingPathComponent("Apps/betterfinder.app")
-        let prepared = PreparedUpdate(
-            release: try UpdateRelease.parse(fixtureData("release")),
-            appURL: tmp.appendingPathComponent("stage/betterfinder.app"),
-            stagingDirectory: tmp.appendingPathComponent("stage")
-        )
-        let args = installer(bundle: bundle, pid: 4242).relaunchArguments(for: prepared, logURL: tmp.appendingPathComponent("u.log"))
+        let old = tmp.appendingPathComponent("Apps/betterfinder (previous).app")
+        let inst = installer(bundle: bundle, pid: 4242)
+        let args = inst.relaunchArguments(removing: old, logURL: tmp.appendingPathComponent("u.log"))
         XCTAssertEqual(args[0], "-c")
         XCTAssertEqual(args[1], UpdateInstaller.relaunchScript)
-        XCTAssertEqual(Array(args[3...7]), ["4242", prepared.appURL.path, bundle.path, prepared.stagingDirectory.path, tmp.appendingPathComponent("u.log").path])
+        XCTAssertEqual(Array(args[3...6]), ["4242", bundle.path, old.path, tmp.appendingPathComponent("u.log").path])
+        XCTAssertEqual(inst.relaunchArguments(removing: nil, logURL: tmp.appendingPathComponent("u.log"))[5], "")
     }
 
-    func runScript(pid: Int32, new: URL, dest: URL, stage: URL, home: URL) throws -> Int32 {
+    func release(_ version: String = "0.1.2") -> UpdateRelease {
+        UpdateRelease(tag: "v\(version)", version: SemanticVersion(version)!, name: version, notes: "", pageURL: nil, publishedAt: nil, zipAsset: nil, dmgAsset: nil)
+    }
+
+    func marker(_ app: URL) -> String? {
+        try? String(contentsOf: app.appendingPathComponent("Contents/MacOS/app"), encoding: .utf8)
+    }
+
+    func installedVersion(_ app: URL) -> String? {
+        NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
+    }
+
+    func makeInstall(newBundleID: String = "com.bryanthaboi.betterfinder", newVersion: String = "0.1.2") throws -> (dest: URL, apps: URL, stage: URL, prepared: PreparedUpdate) {
+        let apps = tmp.appendingPathComponent("Apps", isDirectory: true)
+        let stage = tmp.appendingPathComponent("caches/Updates", isDirectory: true)
+        try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
+        let dest = apps.appendingPathComponent("betterfinder.app")
+        let new = stage.appendingPathComponent("0.1.2/unpacked/betterfinder.app")
+        try makeFakeApp(at: dest, bundleID: "com.bryanthaboi.betterfinder", version: "0.1.1", marker: "old")
+        try makeFakeApp(at: new, bundleID: newBundleID, version: newVersion, marker: "new")
+        return (dest, apps, stage, PreparedUpdate(release: release(), appURL: new, stagingDirectory: stage))
+    }
+
+    func runScript(pid: Int32, dest: URL, old: URL?, opener: String = "/usr/bin/true") throws -> Int32 {
         let log = tmp.appendingPathComponent("script.log")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        process.arguments = ["-c", UpdateInstaller.relaunchScript, "x", String(pid), new.path, dest.path, stage.path, log.path]
-        process.environment = ["HOME": home.path, "BF_OPEN": "/usr/bin/true", "PATH": "/usr/bin:/bin"]
+        process.arguments = ["-c", UpdateInstaller.relaunchScript, "x", String(pid), dest.path, old?.path ?? "", log.path]
+        process.environment = ["BF_OPEN": opener, "PATH": "/usr/bin:/bin"]
         try process.run()
         process.waitUntilExit()
         return process.terminationStatus
@@ -122,45 +145,157 @@ final class InstallerTests: XCTestCase {
         return p.processIdentifier
     }
 
-    func testRelaunchScriptSwapsBundleAndTrashesOld() throws {
-        let apps = tmp.appendingPathComponent("Apps", isDirectory: true)
-        let home = tmp.appendingPathComponent("home", isDirectory: true)
-        let stage = tmp.appendingPathComponent("stage", isDirectory: true)
-        try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        let dest = apps.appendingPathComponent("betterfinder.app")
-        let new = stage.appendingPathComponent("unpacked/betterfinder.app")
-        try makeFakeApp(at: dest, bundleID: "com.bryanthaboi.betterfinder", version: "0.1.1", marker: "old")
-        try makeFakeApp(at: new, bundleID: "com.bryanthaboi.betterfinder", version: "0.1.2", marker: "new")
-
-        let status = try runScript(pid: try deadPID(), new: new, dest: dest, stage: stage, home: home)
-        XCTAssertEqual(status, 0, (try? String(contentsOf: tmp.appendingPathComponent("script.log"), encoding: .utf8)) ?? "")
-
-        let marker = try String(contentsOf: dest.appendingPathComponent("Contents/MacOS/app"), encoding: .utf8)
-        XCTAssertEqual(marker, "new")
-        let trash = try FileManager.default.contentsOfDirectory(atPath: home.appendingPathComponent(".Trash").path)
-        XCTAssertEqual(trash.count, 1)
-        XCTAssertTrue(trash[0].hasPrefix("betterfinder "))
-        let trashed = try String(contentsOf: home.appendingPathComponent(".Trash/\(trash[0])/Contents/MacOS/app"), encoding: .utf8)
-        XCTAssertEqual(trashed, "old")
-        XCTAssertFalse(FileManager.default.fileExists(atPath: stage.path))
-        let leftovers = try FileManager.default.contentsOfDirectory(atPath: apps.path)
-        XCTAssertEqual(leftovers, ["betterfinder.app"])
+    func makeOpener() throws -> (script: URL, record: URL) {
+        let record = tmp.appendingPathComponent("opened.txt")
+        let script = tmp.appendingPathComponent("opener.sh")
+        try "#!/bin/sh\nprintf '%s' \"$1\" > '\(record.path)'\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        return (script, record)
     }
 
-    func testRelaunchScriptKeepsOldAppWhenNewIsMissing() throws {
-        let apps = tmp.appendingPathComponent("Apps", isDirectory: true)
-        let home = tmp.appendingPathComponent("home", isDirectory: true)
-        try FileManager.default.createDirectory(at: apps, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
-        let dest = apps.appendingPathComponent("betterfinder.app")
-        try makeFakeApp(at: dest, bundleID: "com.bryanthaboi.betterfinder", version: "0.1.1", marker: "old")
+    func waitForFile(_ url: URL, timeout: TimeInterval = 10) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let text = try? String(contentsOf: url, encoding: .utf8), !text.isEmpty { return true }
+            usleep(50_000)
+        }
+        return false
+    }
 
-        let status = try runScript(pid: try deadPID(), new: tmp.appendingPathComponent("nope.app"), dest: dest, stage: tmp.appendingPathComponent("stage"), home: home)
-        XCTAssertNotEqual(status, 0)
-        let marker = try String(contentsOf: dest.appendingPathComponent("Contents/MacOS/app"), encoding: .utf8)
-        XCTAssertEqual(marker, "old")
+    func testReplaceBundleSwapsInNewVersion() throws {
+        let (dest, apps, _, prepared) = try makeInstall()
+        let inst = installer(bundle: dest, pid: 77)
+        let previous = try inst.replaceBundle(with: prepared)
+
+        XCTAssertEqual(marker(dest), "new")
+        XCTAssertEqual(installedVersion(dest), "0.1.2")
+        XCTAssertEqual(previous, inst.previousBundleURL)
+        XCTAssertEqual(marker(previous), "old")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path).sorted(), ["betterfinder (previous).app", "betterfinder.app"])
+    }
+
+    func testReplaceBundleReplacesStaleLeftovers() throws {
+        let (dest, apps, _, prepared) = try makeInstall()
+        let inst = installer(bundle: dest)
+        try makeFakeApp(at: inst.previousBundleURL, bundleID: "com.bryanthaboi.betterfinder", version: "0.0.9", marker: "stale")
+        try makeFakeApp(at: inst.incomingBundleURL, bundleID: "com.bryanthaboi.betterfinder", version: "0.0.9", marker: "stale")
+        let previous = try inst.replaceBundle(with: prepared)
+        XCTAssertEqual(marker(dest), "new")
+        XCTAssertEqual(marker(previous), "old")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path).sorted(), ["betterfinder (previous).app", "betterfinder.app"])
+    }
+
+    func testReplaceBundleKeepsOldAppWhenNewIsMissing() throws {
+        let (dest, apps, _, prepared) = try makeInstall()
+        try FileManager.default.removeItem(at: prepared.appURL)
+        XCTAssertThrowsError(try installer(bundle: dest).replaceBundle(with: prepared)) {
+            guard case UpdateError.installFailed = $0 else { return XCTFail("\($0)") }
+        }
+        XCTAssertEqual(marker(dest), "old")
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+    }
+
+    func testReplaceBundleRejectsWrongIdentityAndKeepsOldApp() throws {
+        let (dest, apps, _, prepared) = try makeInstall(newBundleID: "com.evil.app")
+        XCTAssertThrowsError(try installer(bundle: dest).replaceBundle(with: prepared)) {
+            guard case UpdateError.verificationFailed = $0 else { return XCTFail("\($0)") }
+        }
+        XCTAssertEqual(marker(dest), "old")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+    }
+
+    func testReplaceBundleRejectsVersionThatIsNotNewer() throws {
+        let (dest, apps, _, prepared) = try makeInstall(newVersion: "0.1.1")
+        XCTAssertThrowsError(try installer(bundle: dest).replaceBundle(with: prepared)) {
+            guard case UpdateError.verificationFailed = $0 else { return XCTFail("\($0)") }
+        }
+        XCTAssertEqual(marker(dest), "old")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+    }
+
+    func testReplaceBundleRejectsUnsignedAppWhenSignatureIsChecked() throws {
+        let (dest, apps, _, prepared) = try makeInstall()
+        let strict = UpdateInstaller(
+            verifier: UpdateVerifier(currentVersion: SemanticVersion("0.1.1")),
+            cachesDirectory: tmp.appendingPathComponent("caches/Updates"),
+            bundleURL: dest,
+            processID: 1,
+            checkNotarization: false,
+            trashPreviousBundle: false
+        )
+        XCTAssertThrowsError(try strict.replaceBundle(with: prepared)) {
+            guard case UpdateError.verificationFailed = $0 else { return XCTFail("\($0)") }
+        }
+        XCTAssertEqual(marker(dest), "old")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+    }
+
+    func testInstallSwapsBundleBeforeRelaunchingIt() throws {
+        let (dest, apps, stage, prepared) = try makeInstall()
+        let (opener, record) = try makeOpener()
+        setenv("BF_OPEN", opener.path, 1)
+        defer { unsetenv("BF_OPEN") }
+
+        try installer(bundle: dest, caches: stage, pid: try deadPID()).install(prepared)
+        XCTAssertEqual(marker(dest), "new")
+        XCTAssertEqual(installedVersion(dest), "0.1.2")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: stage.path))
+
+        XCTAssertTrue(waitForFile(record), (try? String(contentsOf: tmp.appendingPathComponent("caches/update.log"), encoding: .utf8)) ?? "no log")
+        XCTAssertEqual(try String(contentsOf: record, encoding: .utf8), dest.path)
+        XCTAssertEqual(marker(dest), "new")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+    }
+
+    func testInstallFailureThrowsAndNeverRelaunches() throws {
+        let (dest, apps, stage, prepared) = try makeInstall(newBundleID: "com.evil.app")
+        let (opener, record) = try makeOpener()
+        setenv("BF_OPEN", opener.path, 1)
+        defer { unsetenv("BF_OPEN") }
+
+        XCTAssertThrowsError(try installer(bundle: dest, caches: stage, pid: try deadPID()).install(prepared))
+        XCTAssertEqual(marker(dest), "old")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+        usleep(300_000)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tmp.appendingPathComponent("caches/update.log").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: record.path))
+    }
+
+    func testRelaunchScriptRemovesPreviousAndOpensInstalledBundle() throws {
+        let (dest, apps, _, prepared) = try makeInstall()
+        let previous = try installer(bundle: dest).replaceBundle(with: prepared)
+        let (opener, record) = try makeOpener()
+
+        let status = try runScript(pid: try deadPID(), dest: dest, old: previous, opener: opener.path)
+        XCTAssertEqual(status, 0, (try? String(contentsOf: tmp.appendingPathComponent("script.log"), encoding: .utf8)) ?? "")
+        XCTAssertEqual(try String(contentsOf: record, encoding: .utf8), dest.path)
+        XCTAssertEqual(marker(dest), "new")
+        XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: apps.path), ["betterfinder.app"])
+    }
+
+    func testRelaunchScriptWaitsForTheAppToExit() throws {
+        let (dest, _, _, _) = try makeInstall()
+        let (opener, record) = try makeOpener()
+        let app = Process()
+        app.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        app.arguments = ["30"]
+        try app.run()
+        defer { if app.isRunning { app.terminate() } }
+
+        let script = Process()
+        script.executableURL = URL(fileURLWithPath: "/bin/sh")
+        script.arguments = ["-c", UpdateInstaller.relaunchScript, "x", String(app.processIdentifier), dest.path, "", tmp.appendingPathComponent("script.log").path]
+        script.environment = ["BF_OPEN": opener.path, "PATH": "/usr/bin:/bin"]
+        try script.run()
+        usleep(700_000)
+        XCTAssertTrue(script.isRunning)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: record.path))
+
+        app.terminate()
+        app.waitUntilExit()
+        script.waitUntilExit()
+        XCTAssertEqual(script.terminationStatus, 0)
+        XCTAssertEqual(try String(contentsOf: record, encoding: .utf8), dest.path)
     }
 
     func testPrepareFailsEarlyWhenNotInstallable() async throws {

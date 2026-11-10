@@ -29,12 +29,12 @@ public struct UpdateVerifier: Sendable {
         UpdateRequirement.requirementString(bundleIdentifier: expectedBundleIdentifier, teamIdentifier: teamIdentifier)
     }
 
-    public func verify(appURL: URL, release: UpdateRelease?, checkNotarization: Bool = true) throws {
+    public func verify(appURL: URL, release: UpdateRelease?, checkNotarization: Bool = true, checkSignature: Bool = true) throws {
         let info = try verifyIdentity(appURL: appURL)
         if let release, info.version < release.version {
             throw UpdateError.verificationFailed("app version \(info.version) is older than release \(release.version)")
         }
-        try verifySignature(appURL: appURL)
+        if checkSignature { try verifySignature(appURL: appURL) }
         if checkNotarization { try verifyNotarization(appURL: appURL) }
     }
 

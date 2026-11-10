@@ -135,7 +135,7 @@ public enum UpdateError: Error, LocalizedError, Equatable {
         case .extractionFailed(let m): return "Couldn't unpack the update: \(m)"
         case .verificationFailed(let m): return "The update failed verification and was not installed: \(m)"
         case .notInstallable(let m): return m
-        case .installFailed(let m): return "Couldn't start the installer: \(m)"
+        case .installFailed(let m): return "Couldn't install the update: \(m)"
         }
     }
 }
