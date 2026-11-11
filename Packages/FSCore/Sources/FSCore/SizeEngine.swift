@@ -8,6 +8,7 @@ public struct SizeResult: Sendable, Hashable {
 
     public var isPartial: Bool = false
     public var isStale: Bool = false
+    public var isCounting: Bool = false
 
     public init(allocatedBytes: Int64 = 0, logicalBytes: Int64 = 0, itemCount: Int = 0, isComplete: Bool = false) {
         self.allocatedBytes = allocatedBytes
@@ -15,133 +16,204 @@ public struct SizeResult: Sendable, Hashable {
         self.itemCount = itemCount
         self.isComplete = isComplete
     }
+
+    public var isSettled: Bool { isComplete || (!isCounting && (isPartial || isStale)) }
+    public var isUnreadable: Bool { isPartial && !isCounting }
+}
+
+final class IndexLink: @unchecked Sendable {
+    private let lock = NSLock()
+    private var database: URL?
+    private var control: any SizeIndexControl
+    private var reader: SizeIndexReader?
+    private var lastCheck: UInt64 = 0
+
+    init(database: URL?, control: any SizeIndexControl) {
+        self.database = database
+        self.control = control
+    }
+
+    func attach(database: URL, control: any SizeIndexControl) {
+        lock.lock()
+        self.database = database
+        self.control = control
+        reader = nil
+        lastCheck = 0
+        lock.unlock()
+    }
+
+    var currentControl: any SizeIndexControl {
+        lock.lock(); defer { lock.unlock() }
+        return control
+    }
+
+    var location: URL {
+        lock.lock(); defer { lock.unlock() }
+        return database ?? SizeIndexLocation.database
+    }
+
+    func current() -> SizeIndexReader? {
+        lock.lock()
+        defer { lock.unlock() }
+        let now = DispatchTime.now().uptimeNanoseconds
+        if lastCheck == 0 || now &- lastCheck > 2_000_000_000 {
+            lastCheck = now
+            let url = database ?? SizeIndexLocation.database
+            var st = stat()
+            let exists = stat(url.path, &st) == 0
+            if let open = reader, !exists || open.fileIdentity.dev != st.st_dev || open.fileIdentity.ino != UInt64(st.st_ino) { reader = nil }
+            if reader == nil, exists, let opened = try? SizeIndexReader(databaseURL: url), opened.isUsable { reader = opened }
+        }
+        return reader
+    }
 }
 
 public actor SizeEngine {
     public static let shared = SizeEngine()
 
-    private let client = SizeIndexClient()
-    private var availability: (checked: Date, value: Bool)?
-    public init() {}
+    private nonisolated let link: IndexLink
 
-    func indexerAvailable() async -> Bool {
-        if let availability, Date().timeIntervalSince(availability.checked) < 30 { return availability.value }
-        let value = await client.status() != "unavailable"
-        availability = (Date(), value)
-        return value
+    public init() {
+        link = IndexLink(database: nil, control: SizeIndexClient())
+    }
+
+    public init(databaseURL: URL, control: any SizeIndexControl) {
+        link = IndexLink(database: databaseURL, control: control)
+    }
+
+    public nonisolated func attach(databaseURL: URL, control: any SizeIndexControl) {
+        link.attach(database: databaseURL, control: control)
     }
 
     public func cachedSize(of url: URL) -> SizeResult? {
-        guard let indexed = SharedIndexReader.size(for: url) else { return nil }
-        return Self.result(indexed)
+        snapshot(of: [url])[0]
+    }
+
+    public nonisolated func snapshot(of urls: [URL]) -> [SizeResult?] {
+        guard !urls.isEmpty else { return [] }
+        guard let reader = link.current() else { return urls.map { _ in nil } }
+        return reader.sizes(for: urls).map { $0.map(Self.result) }
+    }
+
+    public nonisolated func focus(on urls: [URL]) {
+        guard !urls.isEmpty else { return }
+        let paths = urls.map(\.path)
+        let control = link.currentControl
+        Task.detached(priority: .utility) { _ = await control.focus(paths: paths) }
+    }
+
+    public nonisolated func refresh(paths: [String]) {
+        guard !paths.isEmpty else { return }
+        var folders = Set<String>()
+        for path in paths {
+            var st = stat()
+            let directory = lstat(path, &st) == 0 && st.st_mode & S_IFMT == S_IFDIR
+            folders.insert(directory ? path : (path as NSString).deletingLastPathComponent)
+        }
+        let list = Array(folders.prefix(SizeIndexWriter.focusLimit))
+        let control = link.currentControl
+        Task.detached(priority: .utility) { _ = await control.refresh(paths: list) }
     }
 
     public func invalidate(path: String) async {
         var st = stat()
         let directory = lstat(path, &st) == 0 && st.st_mode & S_IFMT == S_IFDIR
-        let target = directory ? path : URL(fileURLWithPath: path).deletingLastPathComponent().path
-        guard await indexerAvailable() else { return }
-        _ = await client.refresh(path: target)
+        _ = await link.currentControl.refresh(paths: [directory ? path : (path as NSString).deletingLastPathComponent])
+    }
+
+    static func computerRoots() -> [String] {
+        var roots = ["/Applications", "/Library", "/Users"]
+        let volumes = FileManager.default.mountedVolumeURLs(includingResourceValuesForKeys: [.volumeIsLocalKey], options: [.skipHiddenVolumes]) ?? []
+        for volume in volumes where volume.path != "/" && (try? volume.resourceValues(forKeys: [.volumeIsLocalKey]).volumeIsLocal) == true {
+            roots.append(volume.path)
+        }
+        return roots
     }
 
     static func result(_ size: IndexedSize) -> SizeResult {
         var result = SizeResult(allocatedBytes: size.allocatedBytes, logicalBytes: size.logicalBytes, itemCount: size.items, isComplete: size.state == .complete)
-        result.isPartial = size.state == .partial
+        result.isPartial = size.state == .partial || size.unreadableFolders > 0
         result.isStale = size.state == .stale
-        if result.isStale { result.isComplete = false }
+        result.isCounting = size.isCounting
         return result
     }
 
     public func size(of url: URL) -> AsyncStream<SizeResult> {
-        AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
-            let task = Task.detached(priority: .background) {
-                let client = SizeIndexClient()
-                let available = await self.indexerAvailable()
-                if available, let hit = SharedIndexReader.size(for: url) {
-                    continuation.yield(Self.result(hit))
-                    if hit.state == .complete { continuation.finish(); return }
+        let link = link
+        return AsyncStream(bufferingPolicy: .bufferingNewest(1)) { continuation in
+            let task = Task.detached(priority: .utility) {
+                var last = link.current()?.size(for: url)
+                if let last {
+                    continuation.yield(Self.result(last))
+                    if last.state != .stale { continuation.finish(); return }
                 }
-                if available, await client.prioritize(path: url.path) {
-                    var last: IndexedSize?
-                    var failures = 0
-                    while !Task.isCancelled {
-                        if let hit = SharedIndexReader.size(for: url), hit != last {
+                _ = await link.currentControl.focus(paths: [url.path])
+                var waited = 0.0
+                var interval = 0.1
+                while !Task.isCancelled {
+                    try? await Task.sleep(for: .seconds(interval))
+                    waited += interval
+                    interval = min(1, interval * 1.5)
+                    if let hit = link.current()?.size(for: url) {
+                        if hit != last {
                             last = hit
                             continuation.yield(Self.result(hit))
-                            if hit.state == .complete || hit.state == .partial { break }
                         }
-                        try? await Task.sleep(for: .seconds(1))
-                        failures += 1
-                        if last == nil && failures >= 30 { break }
-                        if failures % 10 == 0 {
-                            if await client.status() == "unavailable" { break }
-                        }
-                    }
-                    if last != nil || Task.isCancelled { continuation.finish(); return }
+                        if hit.state != .stale { break }
+                        if !hit.isCounting && waited > 6 { break }
+                    } else if waited > 10 { break }
                 }
-                await FallbackSizeScanner.gate.acquire()
-                if !Task.isCancelled { FallbackSizeScanner.scan(url, continuation: continuation) }
-                await FallbackSizeScanner.gate.release()
                 continuation.finish()
             }
             continuation.onTermination = { _ in task.cancel() }
         }
     }
-}
 
-enum SharedIndexReader {
-    private static let lock = NSLock()
-    nonisolated(unsafe) private static var reader: SizeIndexReader?
-    nonisolated(unsafe) private static var lastAttempt = Date.distantPast
-
-    static func size(for url: URL) -> IndexedSize? {
-        lock.lock()
-        if reader == nil, Date().timeIntervalSince(lastAttempt) > 5 {
-            lastAttempt = Date()
-            if FileManager.default.fileExists(atPath: SizeIndexLocation.database.path) { reader = try? SizeIndexReader() }
-        }
-        let current = reader
-        lock.unlock()
-        return current?.size(for: url)
-    }
-}
-
-private actor ScanGate {
-    private var available: Int
-    private var waiters: [CheckedContinuation<Void, Never>] = []
-    init(_ permits: Int) { available = permits }
-    func acquire() async {
-        if available > 0 { available -= 1; return }
-        await withCheckedContinuation { waiters.append($0) }
-    }
-    func release() {
-        if waiters.isEmpty { available += 1 } else { waiters.removeFirst().resume() }
-    }
-}
-
-private enum FallbackSizeScanner {
-    static let gate = ScanGate(2)
-    static func scan(_ url: URL, continuation: AsyncStream<SizeResult>.Continuation) {
-        let temporary = FileManager.default.temporaryDirectory.appendingPathComponent("betterfinder-size-" + UUID().uuidString)
-        do {
-            try FileManager.default.createDirectory(at: temporary, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            defer { try? FileManager.default.removeItem(at: temporary) }
-            let database = temporary.appendingPathComponent("index.sqlite")
-            let writer = try SizeIndexWriter(databaseURL: database)
-            let reader = try SizeIndexReader(databaseURL: database)
-            try writer.addRoot(url, allowNetwork: true)
-            var lastYield = Date.distantPast
-            while try writer.processBatch(limit: 512, budget: 0.1) > 0 {
-                try Task.checkCancellation()
-                if Date().timeIntervalSince(lastYield) > 0.5, let hit = reader.size(for: url) {
-                    continuation.yield(SizeEngine.result(hit)); lastYield = Date()
+    public nonisolated func search(_ query: String, under scope: URL, includeHidden: Bool, limit: Int) -> AsyncStream<IndexSearchEvent> {
+        let link = link
+        return AsyncStream(bufferingPolicy: .unbounded) { continuation in
+            let flag = ScanCancellation()
+            let task = Task.detached(priority: .userInitiated) {
+                guard !NameMatcher(query).isEmpty else {
+                    continuation.yield(.finished(IndexSearchSummary()))
+                    continuation.finish()
+                    return
                 }
+                _ = await link.currentControl.focus(paths: scope.path == "/" ? Self.computerRoots() : [scope.path])
+                let searcher = SizeIndexSearcher(databaseURL: link.location)
+                var delivered = Set<String>()
+                var waited = 0.0
+                var summary = IndexSearchSummary(hitLimit: false, indexed: false)
+                while !flag.isCancelled {
+                    let pass = searcher.pass(query: query, under: scope, includeHidden: includeHidden, limit: limit, skipping: delivered, isCancelled: { flag.isCancelled }) {
+                        continuation.yield(.paths($0))
+                    }
+                    delivered = pass.delivered
+                    summary = IndexSearchSummary(hitLimit: pass.hitLimit, indexed: pass.found)
+                    if pass.hitLimit || (pass.found && !pass.counting) { break }
+                    if !pass.found && waited > 12 { break }
+                    try? await Task.sleep(for: .seconds(pass.found ? 1.5 : 0.3))
+                    waited += pass.found ? 1.5 : 0.3
+                }
+                if !flag.isCancelled { continuation.yield(.finished(summary)) }
+                continuation.finish()
             }
-            if let hit = reader.size(for: url) { continuation.yield(SizeEngine.result(hit)) }
-        } catch is CancellationError { } catch {
-            var result = SizeResult()
-            result.isPartial = true
-            continuation.yield(result)
+            continuation.onTermination = { _ in
+                flag.cancel()
+                task.cancel()
+            }
         }
+    }
+}
+
+final class ScanCancellation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var cancelled = false
+    var isCancelled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return cancelled
+    }
+    func cancel() {
+        lock.lock(); cancelled = true; lock.unlock()
     }
 }

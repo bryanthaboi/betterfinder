@@ -119,14 +119,14 @@ final class InfoModel: ObservableObject {
     }
 
     func applySize(_ r: SizeResult, name: String, sawProgress: inout Bool, announced: inout Bool) {
-        let finished = r.isComplete || (r.isPartial && !r.isStale)
+        let finished = r.isSettled
         let size = "\(SizeFormatter.string(r.allocatedBytes)) on disk"
-        sizeText = size + (finished ? (r.isComplete ? "" : " (some items unreadable)") : "…")
+        sizeText = size + (finished ? (r.isUnreadable ? " (some items unreadable)" : "") : "…")
         sizeDetail = "\(SizeFormatter.exact(r.logicalBytes)) logical · \(r.itemCount.formatted()) items"
         guard finished else { sawProgress = true; return }
         guard sawProgress, !announced else { return }
         announced = true
-        Self.announce("\(name), \(size), calculation complete\(r.isComplete ? "" : ", some items unreadable")")
+        Self.announce("\(name), \(size), calculation complete\(r.isUnreadable ? ", some items unreadable" : "")")
     }
 
     func rename(to newName: String) {

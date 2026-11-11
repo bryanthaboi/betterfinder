@@ -19,13 +19,13 @@
 ## what it does
 
 - **list view default.** detailed columns out of the box, sort + layout stick everywhere, never writes `.DS_Store`
-- **folder sizes.** right in the size column, kept up to date by a small background indexer so they dont recount every visit
+- **folder sizes.** right in the size column, straight out of a background file index. no recounting when u open a folder, renames + moves keep their size
 - **space = quick look.** real system quick look, arrow keys follow along, works in list/column/icon views
 - **up button that always works.** <kbd>⌘</kbd><kbd>↑</kbd> from anywhere, incl search results + recents. selects where u came from
 - **path bar u can type in.** <kbd>⌘</kbd><kbd>L</kbd>, tab completion, `~`, paste a `file://` url
 - **real cut + paste.** <kbd>⌘</kbd><kbd>X</kbd> then <kbd>⌘</kbd><kbd>V</kbd> moves it. like a normal computer
 - **filter as u type.** type `*.zip` and the folder narrows instantly, or right click a kind → filter by. <kbd>esc</kbd> clears it
-- **search this folder.** <kbd>⌘</kbd><kbd>F</kbd> searches where u are, not "this mac"
+- **search this folder.** <kbd>⌘</kbd><kbd>F</kbd> searches where u are, not "this mac". name search runs off the same index so its basically instant, even across ur whole home
 - **tabs + dual pane.** <kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd> for two panes, <kbd>F5</kbd>/<kbd>F6</kbd> copy/move across. folders can open in tabs like a browser if u want
 - **right click that helps.** new ▸ and open in terminal are always there, w the terminal app of ur choice
 - **get info + mini info.** hold <kbd>⌥</kbd> for a small floating card. drives show capacity + whats used

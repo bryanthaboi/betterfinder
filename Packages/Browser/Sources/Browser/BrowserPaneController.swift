@@ -219,7 +219,6 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     }
 
     func customSortValuesChanged(_ values: [String: ColumnValue]) {
-        pendingSelection = selectedURLs
         model.updateCustomValues(values)
     }
 
@@ -604,14 +603,10 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
 
     private func handleFSEvents(_ batch: FolderModel.FSEventBatch) {
         let paths = batch.paths
-        let root = location.url?.pathKey
-        Task.detached(priority: .utility) { [weak self] in
-            for p in paths { await SizeEngine.shared.invalidate(path: p) }
-            guard let root else { return }
-            await MainActor.run {
-                guard let self, self.location.url?.pathKey == root else { return }
-                for p in paths { self.sizes.invalidateContaining(path: p, under: root) }
-            }
+        if sizes.enabled {
+            let engine = sizes.engine
+            Task.detached(priority: .utility) { engine.refresh(paths: paths) }
+            if let root = location.url?.pathKey { for p in paths { sizes.touch(path: p, under: root) } }
         }
         for p in paths { IconCache.shared.invalidate(URL(fileURLWithPath: p)) }
         if !batch.directories.isEmpty { content.childDirectoryEvents(batch.directories) }
@@ -807,21 +802,21 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         sizes.enabled = sizesAllowed
         guard sizes.enabled else { return }
         let pinned = selectedItems.filter(\.isBrowsableFolder).map(\.url)
-        sizes.request(visible: content.visibleFolderURLs(), pinned: pinned)
+        let everything = model.sorter.spec.key == .size ? model.items.filter(\.isBrowsableFolder).map(\.url) : []
+        sizes.request(visible: content.visibleFolderURLs(), pinned: pinned, everything: everything, container: location.url)
     }
 
     private func sizeUpdated(_ key: String) {
         content.sizeDidChange(key)
         let sel = selectedItems
         if sel.count == 1, sel[0].isBrowsableFolder, sel[0].url.pathKey == key { updateStatus() }
-        if model.sorter.spec.key == .size, sizes.results[key]?.isComplete == true, !sortBySizeScheduled {
+        if model.sorter.spec.key == .size, sizes.results[key]?.isSettled == true, !sortBySizeScheduled {
             sortBySizeScheduled = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.sortBySizeScheduled = false
-                    self.pendingSelection = self.selectedURLs
-                    self.model.updateSizes(self.sizes.completedAllocated)
+                    self.model.updateSizes(self.sizes.settledAllocated)
                 }
             }
         }

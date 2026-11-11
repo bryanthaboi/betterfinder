@@ -6,6 +6,7 @@ final class FolderModel {
     enum Change {
         case reset
         case diff(ListDiff)
+        case reorder
     }
 
     struct FSEventBatch {
@@ -40,6 +41,7 @@ final class FolderModel {
     private var searchSortInFlight = false
     private var searchSortDirty = false
     private var sortGeneration = 0
+    private var forcedSortGeneration = 0
     private var pendingEventPaths: [String] = []
     private var eventFlushScheduled = false
     private var resolvedRoot: String?
@@ -114,22 +116,23 @@ final class FolderModel {
 
     func updateSort(_ spec: SortSpec) {
         sorter.spec = spec
-        resort()
+        resort(announceUnchanged: true)
     }
 
     func updateSizes(_ sizes: [String: Int64]) {
+        guard sorter.sizes != sizes else { return }
         sorter.sizes = sizes
-        if sorter.spec.key == .size { resort() }
+        if sorter.spec.key == .size { resort(announceUnchanged: false) }
     }
 
     func updateCustomValues(_ values: [String: ColumnValue]) {
         sorter.customValues = values
-        if sorter.spec.key == .custom { resort() }
+        if sorter.spec.key == .custom { resort(announceUnchanged: false) }
     }
 
     func updateDimensions(_ dims: [String: Int]) {
         sorter.dimensions = dims
-        if sorter.spec.key == .dimensions { resort() }
+        if sorter.spec.key == .dimensions { resort(announceUnchanged: false) }
     }
 
     func sortedItems(_ input: [FileItem]) -> [FileItem] { sorter.sorted(input) }
@@ -141,19 +144,24 @@ final class FolderModel {
         emit(.reset)
     }
 
-    private func resort() {
+    private func resort(announceUnchanged: Bool) {
         let snapshot = unfiltered
         let s = sorter
         sortGeneration += 1
         let sg = sortGeneration
         let gen = generation
+        if announceUnchanged { forcedSortGeneration = sg }
         DirectoryStream.queue.async { [weak self] in
             let sorted = s.sorted(snapshot)
+            let moved = !sorted.elementsEqual(snapshot) { $0.url == $1.url }
             onMain {
                 guard let self, self.generation == gen, self.sortGeneration == sg, self.unfiltered.count == snapshot.count else { return }
+                let forced = self.forcedSortGeneration != 0
+                self.forcedSortGeneration = 0
+                guard moved || forced else { return }
                 self.unfiltered = sorted
                 self.items = self.filter?.apply(sorted) ?? sorted
-                self.emit(.reset)
+                self.emit(.reorder)
             }
         }
     }
@@ -224,7 +232,7 @@ final class FolderModel {
                 }
                 self.setLoading(false)
                 if sorted.count > 2000 { MemoryRelief.schedule() }
-                if self.sorter.spec != sorter.spec || self.sorter.sizes != sorter.sizes { self.resort() }
+                if self.sorter.spec != sorter.spec || self.sorter.sizes != sorter.sizes { self.resort(announceUnchanged: false) }
             }
         }
     }

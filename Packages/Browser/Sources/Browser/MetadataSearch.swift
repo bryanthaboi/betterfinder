@@ -11,16 +11,13 @@ final class MetadataSearch: NSObject {
 
     struct Completeness: Equatable, Sendable {
         var hitResultLimit = false
-        var hitVisitLimit = false
-        var skippedDirectories = 0
+        var unindexed = false
 
-        var isComplete: Bool { !hitResultLimit && !hitVisitLimit && skippedDirectories == 0 }
+        var isComplete: Bool { !hitResultLimit && !unindexed }
 
         func notice(resultLimit: Int) -> String? {
             if hitResultLimit { return "Showing the first \(resultLimit.formatted()) matches — narrow your search" }
-            if hitVisitLimit { return "Partial results — the search stopped after checking too many items" }
-            if skippedDirectories == 1 { return "Partial results — 1 folder couldn’t be searched" }
-            if skippedDirectories > 1 { return "Partial results — \(skippedDirectories.formatted()) folders couldn’t be searched" }
+            if unindexed { return "This location isn’t in the file index yet" }
             return nil
         }
     }
@@ -29,15 +26,13 @@ final class MetadataSearch: NSObject {
     var onPaths: (([String]) -> Void)?
     var onFinish: ((Completeness) -> Void)?
     var resultLimit = 5000
-    var visitLimit = 2_000_000
-    var forcesWalk = false
+    var engine: SizeEngine = .shared
     private(set) var completeness = Completeness()
 
     private var query: NSMetadataQuery?
     private var consumed = 0
     private var delivered = 0
-    private var walkToken: CancelToken?
-    private var walking = false
+    private var indexTask: Task<Void, Never>?
     private var finished = false
 
     init(kind: Kind) {
@@ -49,17 +44,12 @@ final class MetadataSearch: NSObject {
     }
 
     func start() {
-        if case .name(_, let scope) = kind, forcesWalk || Self.prefersWalk(scope) {
-            startWalk()
-            return
-        }
         let q = NSMetadataQuery()
         q.notificationBatchingInterval = 0.25
         switch kind {
         case .name(let text, let scope):
-            let escaped = text.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "*", with: "\\*").replacingOccurrences(of: "?", with: "\\?")
-            q.predicate = NSPredicate(format: "%K LIKE[cd] %@", NSMetadataItemFSNameKey, "*\(escaped)*")
-            q.searchScopes = scope.path == "/" ? [NSMetadataQueryLocalComputerScope] : [scope]
+            searchIndex(text, under: scope)
+            return
         case .recents:
             let since = Date().addingTimeInterval(-30 * 86400)
             q.predicate = NSPredicate(format: "%K >= %@ AND %K != 'public.folder'", NSMetadataItemLastUsedDateKey as NSString, since as NSDate, NSMetadataItemContentTypeKey as NSString)
@@ -75,7 +65,7 @@ final class MetadataSearch: NSObject {
         nc.addObserver(self, selector: #selector(gathered(_:)), name: .NSMetadataQueryDidUpdate, object: q)
         nc.addObserver(self, selector: #selector(finishedGathering(_:)), name: .NSMetadataQueryDidFinishGathering, object: q)
         query = q
-        if !q.start() { startWalkIfPossible() }
+        if !q.start() { finish() }
     }
 
     func stop() {
@@ -84,23 +74,27 @@ final class MetadataSearch: NSObject {
             NotificationCenter.default.removeObserver(self, name: nil, object: q)
         }
         query = nil
-        walkToken?.cancel()
-        walkToken = nil
+        indexTask?.cancel()
+        indexTask = nil
         onPaths = nil
         onFinish = nil
     }
 
-    static func prefersWalk(_ scope: URL) -> Bool {
-        if scope.path == "/" { return false }
-        if VolumeInfo.isNetworkVolume(scope) { return true }
-        let v = try? scope.resourceValues(forKeys: [.volumeIsInternalKey, .volumeIsLocalKey])
-        return v?.volumeIsInternal == false && v?.volumeIsLocal == true && !Self.volumeIsIndexed(scope)
-    }
-
-    static func volumeIsIndexed(_ url: URL) -> Bool {
-        guard let vol = (try? url.resourceValues(forKeys: [.volumeURLKey]))?.volume else { return true }
-        let marker = vol.appendingPathComponent(".Spotlight-V100")
-        return FileManager.default.fileExists(atPath: marker.path)
+    private func searchIndex(_ text: String, under scope: URL) {
+        let stream = engine.search(text, under: scope, includeHidden: BrowserDefaults.showHidden, limit: resultLimit)
+        indexTask = Task { [weak self] in
+            for await event in stream {
+                guard let self, !Task.isCancelled else { return }
+                switch event {
+                case .paths(let paths):
+                    self.deliver(paths)
+                case .finished(let summary):
+                    self.completeness.hitResultLimit = summary.hitLimit
+                    self.completeness.unindexed = !summary.indexed
+                    self.finish()
+                }
+            }
+        }
     }
 
     @objc private func gathered(_ note: Notification) {
@@ -110,7 +104,7 @@ final class MetadataSearch: NSObject {
     @objc private func finishedGathering(_ note: Notification) {
         drain()
         query?.stop()
-        if delivered == 0 { startWalkIfPossible() } else { finish() }
+        finish()
     }
 
     private func drain() {
@@ -129,21 +123,9 @@ final class MetadataSearch: NSObject {
         deliver(paths)
     }
 
-    private lazy var scopeRemap: (real: String, display: String)? = {
-        guard case .name(_, let scope) = kind else { return nil }
-        let display = scope.pathKey
-        var buf = [CChar](repeating: 0, count: Int(PATH_MAX))
-        guard realpath(display, &buf) != nil else { return nil }
-        let real = String(cString: buf)
-        return real == display ? nil : (real, display)
-    }()
-
     private func deliver(_ raw: [String]) {
         guard !raw.isEmpty else { return }
         var paths = raw
-        if let (real, display) = scopeRemap {
-            paths = raw.map { $0.hasPrefix(real + "/") ? display + $0.dropFirst(real.count) : $0 }
-        }
         if DemoEnvironment.isEnabled { paths = paths.filter { DemoEnvironment.contains(URL(fileURLWithPath: $0), in: DemoEnvironment.home) } }
         delivered += paths.count
         onPaths?(paths)
@@ -153,82 +135,5 @@ final class MetadataSearch: NSObject {
         guard !finished else { return }
         finished = true
         onFinish?(completeness)
-    }
-
-    private func startWalkIfPossible() {
-        guard case .name(_, let scope) = kind, scope.path != "/" else { finish(); return }
-        startWalk()
-    }
-
-    private func startWalk() {
-        guard case .name(let text, let scope) = kind, !walking else { finish(); return }
-        walking = true
-        let token = CancelToken()
-        walkToken = token
-        let limit = resultLimit
-        let maxVisits = visitLimit
-        let showHidden = BrowserDefaults.showHidden
-        DirectoryStream.queue.async { [weak self] in
-            let needle = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-            var options: FileManager.DirectoryEnumerationOptions = [.skipsPackageDescendants]
-            if !showHidden { options.insert(.skipsHiddenFiles) }
-            let skipped = WalkErrorCounter()
-            let e = FileManager.default.enumerator(at: scope, includingPropertiesForKeys: [.nameKey], options: options, errorHandler: { url, _ in
-                skipped.record(url)
-                return true
-            })
-            var batch: [String] = []
-            var found = 0
-            var visited = 0
-            var last = Date()
-            var hitResultLimit = false
-            var hitVisitLimit = false
-            while let url = e?.nextObject() as? URL {
-                if token.isCancelled { return }
-                visited += 1
-                if visited > maxVisits { hitVisitLimit = true; break }
-                let name = url.lastPathComponent.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
-                if name.contains(needle) {
-                    batch.append(url.path)
-                    found += 1
-                    if found >= limit {
-                        hitResultLimit = e?.nextObject() != nil
-                        break
-                    }
-                }
-                if !batch.isEmpty && Date().timeIntervalSince(last) > 0.25 {
-                    let out = batch
-                    batch.removeAll()
-                    last = Date()
-                    onMain { if !token.isCancelled { self?.deliver(out) } }
-                }
-            }
-            let out = batch
-            let skippedCount = skipped.count
-            onMain {
-                guard !token.isCancelled, let self else { return }
-                self.completeness.hitResultLimit = self.completeness.hitResultLimit || hitResultLimit
-                self.completeness.hitVisitLimit = hitVisitLimit
-                self.completeness.skippedDirectories = skippedCount
-                self.deliver(out)
-                self.finish()
-            }
-        }
-    }
-}
-
-final class WalkErrorCounter: @unchecked Sendable {
-    private let lock = NSLock()
-    private var paths = Set<String>()
-
-    func record(_ url: URL) {
-        lock.lock()
-        paths.insert(url.path)
-        lock.unlock()
-    }
-
-    var count: Int {
-        lock.lock(); defer { lock.unlock() }
-        return paths.count
     }
 }

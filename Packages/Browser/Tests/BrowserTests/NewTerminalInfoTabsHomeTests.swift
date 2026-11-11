@@ -224,6 +224,7 @@ final class NewTerminalInfoTabsHomeTests: XCTestCase {
     }
 
     func testMiniInfoPanelShowsOnePerItemAndUpdatesFolderSize() throws {
+        IndexTestHost.install()
         let dir = try makeTree()
         let file = dir.appendingPathComponent("a.txt")
         let shown = MiniInfoPanelController.show([file, dir], near: NSPoint(x: 200, y: 400))

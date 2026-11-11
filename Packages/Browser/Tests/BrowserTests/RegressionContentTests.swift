@@ -318,9 +318,16 @@ final class RegressionContentTests: XCTestCase {
         XCTAssertEqual(cache.count, 0)
     }
 
-    private func runWalk(_ dir: URL, query: String, configure: (MetadataSearch) -> Void) -> (paths: [String], completeness: MetadataSearch.Completeness?) {
+    private func indexEngine() throws -> SizeEngine {
+        let database = try tempDir("index").appendingPathComponent("index.sqlite")
+        let daemon = try SizeIndexDaemon(databaseURL: database)
+        addTeardownBlock { daemon.stop() }
+        return SizeEngine(databaseURL: database, control: daemon)
+    }
+
+    private func runSearch(_ dir: URL, query: String, engine: SizeEngine, configure: (MetadataSearch) -> Void = { _ in }) -> (paths: [String], completeness: MetadataSearch.Completeness?) {
         let search = MetadataSearch(kind: .name(query, scope: dir))
-        search.forcesWalk = true
+        search.engine = engine
         configure(search)
         var paths: [String] = []
         var result: MetadataSearch.Completeness?
@@ -332,51 +339,55 @@ final class RegressionContentTests: XCTestCase {
         return (paths, result)
     }
 
-    func testWalkSearchReportsResultCap() throws {
+    func testIndexSearchReportsResultCap() throws {
         let dir = try tempDir("cap")
         for i in 0..<8 { FileManager.default.createFile(atPath: dir.appendingPathComponent("match-\(i).txt").path, contents: Data()) }
-        let capped = runWalk(dir, query: "match") { $0.resultLimit = 3 }
+        let engine = try indexEngine()
+        let capped = runSearch(dir, query: "match", engine: engine) { $0.resultLimit = 3 }
         let c = try XCTUnwrap(capped.completeness)
         XCTAssertEqual(capped.paths.count, 3)
         XCTAssertTrue(c.hitResultLimit)
         XCTAssertEqual(c.notice(resultLimit: 3), "Showing the first 3 matches — narrow your search")
 
-        let full = runWalk(dir, query: "match") { $0.resultLimit = 100 }
+        let full = runSearch(dir, query: "MATCH", engine: engine) { $0.resultLimit = 100 }
         XCTAssertEqual(full.paths.count, 8)
         XCTAssertEqual(full.completeness?.isComplete, true)
         XCTAssertNil(full.completeness?.notice(resultLimit: 100))
     }
 
-    func testWalkSearchReportsDeniedFoldersAndVisitLimit() throws {
-        let dir = try tempDir("denied")
+    func testIndexSearchFindsNestedNamesAndSkipsUnreadableFolders() throws {
+        let dir = try tempDir("nested")
+        let deep = dir.appendingPathComponent("a/b/c")
         let locked = dir.appendingPathComponent("locked")
+        try FileManager.default.createDirectory(at: deep, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: locked, withIntermediateDirectories: true)
+        FileManager.default.createFile(atPath: deep.appendingPathComponent("Match Deep.txt").path, contents: Data())
         FileManager.default.createFile(atPath: locked.appendingPathComponent("match-inside.txt").path, contents: Data())
         FileManager.default.createFile(atPath: dir.appendingPathComponent("match-outside.txt").path, contents: Data())
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("a/matching folder"), withIntermediateDirectories: true)
         try FileManager.default.setAttributes([.posixPermissions: 0], ofItemAtPath: locked.path)
         addTeardownBlock { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: locked.path) }
-        let r = runWalk(dir, query: "match") { _ in }
-        let c = try XCTUnwrap(r.completeness)
-        XCTAssertEqual(r.paths.map { URL(fileURLWithPath: $0).lastPathComponent }, ["match-outside.txt"])
-        XCTAssertEqual(c.skippedDirectories, 1)
-        XCTAssertFalse(c.isComplete)
-        XCTAssertEqual(c.notice(resultLimit: 5000), "Partial results — 1 folder couldn’t be searched")
+        let engine = try indexEngine()
+        let r = runSearch(dir, query: "match", engine: engine)
+        XCTAssertEqual(Set(r.paths.map { URL(fileURLWithPath: $0).lastPathComponent }), ["match-outside.txt", "Match Deep.txt", "matching folder"])
+        XCTAssertTrue(r.paths.allSatisfy { $0.hasPrefix(dir.path + "/") })
+        XCTAssertEqual(r.completeness?.isComplete, true)
 
-        let many = try tempDir("visits")
-        for i in 0..<6 { FileManager.default.createFile(atPath: many.appendingPathComponent("x-\(i).txt").path, contents: Data()) }
-        let v = runWalk(many, query: "x") { $0.visitLimit = 2 }
-        XCTAssertEqual(v.completeness?.hitVisitLimit, true)
-        XCTAssertNotNil(v.completeness?.notice(resultLimit: 5000))
+        FileManager.default.createFile(atPath: deep.appendingPathComponent("match-later.txt").path, contents: Data())
+        engine.refresh(paths: [deep.path])
+        XCTAssertTrue(spin { self.runSearch(dir, query: "later", engine: engine).paths.count == 1 })
+        XCTAssertEqual(runSearch(dir, query: "nothing-like-this", engine: engine).paths, [])
     }
 
     func testFolderModelPublishesSearchNotice() throws {
         let dir = try tempDir("model")
         for i in 0..<5 { FileManager.default.createFile(atPath: dir.appendingPathComponent("hit-\(i).txt").path, contents: Data()) }
+        let engine = try indexEngine()
         let previous = FolderModel.makeSearch
         addTeardownBlock { await MainActor.run { FolderModel.makeSearch = previous } }
         FolderModel.makeSearch = { kind in
             let s = MetadataSearch(kind: kind)
-            s.forcesWalk = true
+            s.engine = engine
             s.resultLimit = 2
             return s
         }
@@ -389,13 +400,14 @@ final class RegressionContentTests: XCTestCase {
 
         FolderModel.makeSearch = { kind in
             let s = MetadataSearch(kind: kind)
-            s.forcesWalk = true
+            s.engine = engine
             return s
         }
         model.load()
         XCTAssertNil(model.searchNotice)
         XCTAssertTrue(spin { !model.isLoading })
         XCTAssertNil(model.searchNotice)
+        XCTAssertEqual(model.items.count, 5)
         model.stop()
     }
 }

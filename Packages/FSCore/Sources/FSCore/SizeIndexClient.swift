@@ -2,14 +2,13 @@ import Foundation
 import ServiceManagement
 
 @objc public protocol SizeIndexProtocol {
-    func prioritize(path: String, reply: @escaping (Bool) -> Void)
-    func addRoot(path: String, reply: @escaping (Bool) -> Void)
+    func focus(paths: [String], reply: @escaping (Bool) -> Void)
+    func refresh(paths: [String], reply: @escaping (Bool) -> Void)
     func pause(reply: @escaping (Bool) -> Void)
     func resume(reply: @escaping (Bool) -> Void)
     func rebuild(reply: @escaping (Bool) -> Void)
     func status(reply: @escaping (String) -> Void)
     func buildIdentity(reply: @escaping (String) -> Void)
-    func refresh(path: String, reply: @escaping (Bool) -> Void)
 }
 
 public enum SizeIndexService {
@@ -39,30 +38,29 @@ private final class IndexReply<T>: @unchecked Sendable {
     }
 }
 
-public final class SizeIndexClient: @unchecked Sendable {
+public final class SizeIndexClient: @unchecked Sendable, SizeIndexControl {
     public init() {}
-    private func call<T>(fallback: T, _ body: @escaping (SizeIndexProtocol, @escaping (T) -> Void) -> Void) async -> T {
-        guard !DemoEnvironment.isEnabled else { return fallback }
+    private func call<T>(unreachable: T, _ body: @escaping (SizeIndexProtocol, @escaping (T) -> Void) -> Void) async -> T {
+        guard !DemoEnvironment.isEnabled else { return unreachable }
         return await withCheckedContinuation { continuation in
             let reply = IndexReply(continuation)
             let connection = NSXPCConnection(machServiceName: SizeIndexService.machServiceName)
             connection.remoteObjectInterface = NSXPCInterface(with: SizeIndexProtocol.self)
-            connection.interruptionHandler = { [weak connection] in reply.finish(fallback); connection?.invalidate() }
-            connection.invalidationHandler = { reply.finish(fallback) }
+            connection.interruptionHandler = { [weak connection] in reply.finish(unreachable); connection?.invalidate() }
+            connection.invalidationHandler = { reply.finish(unreachable) }
             connection.resume()
             let finish: (T) -> Void = { value in reply.finish(value); connection.invalidate() }
-            if let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in finish(fallback) }) as? SizeIndexProtocol { body(proxy, finish) } else { finish(fallback) }
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) { finish(fallback) }
+            if let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in finish(unreachable) }) as? SizeIndexProtocol { body(proxy, finish) } else { finish(unreachable) }
+            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) { finish(unreachable) }
         }
     }
-    public func prioritize(path: String) async -> Bool { await call(fallback: false) { $0.prioritize(path: path, reply: $1) } }
-    public func refresh(path: String) async -> Bool { await call(fallback: false) { $0.refresh(path: path, reply: $1) } }
-    public func addRoot(path: String) async -> Bool { await call(fallback: false) { $0.addRoot(path: path, reply: $1) } }
-    public func pause() async -> Bool { await call(fallback: false) { $0.pause(reply: $1) } }
-    public func resume() async -> Bool { await call(fallback: false) { $0.resume(reply: $1) } }
-    public func rebuild() async -> Bool { await call(fallback: false) { $0.rebuild(reply: $1) } }
-    public func status() async -> String { await call(fallback: "unavailable") { $0.status(reply: $1) } }
-    public func buildIdentity() async -> String { await call(fallback: "") { $0.buildIdentity(reply: $1) } }
+    public func focus(paths: [String]) async -> Bool { await call(unreachable: false) { $0.focus(paths: paths, reply: $1) } }
+    public func refresh(paths: [String]) async -> Bool { await call(unreachable: false) { $0.refresh(paths: paths, reply: $1) } }
+    public func pause() async -> Bool { await call(unreachable: false) { $0.pause(reply: $1) } }
+    public func resume() async -> Bool { await call(unreachable: false) { $0.resume(reply: $1) } }
+    public func rebuild() async -> Bool { await call(unreachable: false) { $0.rebuild(reply: $1) } }
+    public func status() async -> String { await call(unreachable: "unavailable") { $0.status(reply: $1) } }
+    public func buildIdentity() async -> String { await call(unreachable: "") { $0.buildIdentity(reply: $1) } }
 
     public func terminateService() async -> Bool {
         guard !DemoEnvironment.isEnabled else { return false }

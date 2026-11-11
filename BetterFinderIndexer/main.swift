@@ -2,55 +2,16 @@ import Foundation
 import Darwin
 import FSCore
 import Security
-import CoreGraphics
 
-final class Indexer: NSObject, NSXPCListenerDelegate, SizeIndexProtocol {
-    let queue = DispatchQueue(label: "betterfinder.indexer", qos: .background)
-    let writer: SizeIndexWriter
-    var events: SizeIndexEvents!
-    var paused = false
-    var timer: DispatchSourceTimer!
-    var lastReconciliation = Date()
+final class IndexerService: NSObject, NSXPCListenerDelegate, SizeIndexProtocol {
+    let daemon: SizeIndexDaemon
+    let identity: String
 
-    let reconciliationInterval: TimeInterval = 86400
-    private var idling = false
+    init(daemon: SizeIndexDaemon, identity: String) {
+        self.daemon = daemon
+        self.identity = identity
+    }
 
-    init(databaseURL: URL = SizeIndexLocation.database, root: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        do { writer = try SizeIndexWriter(databaseURL: databaseURL) } catch { fatalError("Cannot open size index: \(error)") }
-        super.init()
-        events = SizeIndexEvents(writer: writer, queue: queue)
-        events.onChange = { [weak self] in self?.wake() }
-        queue.async {
-            do { try self.events.watch(root); try self.events.restore(); try self.writer.addRoot(root) } catch { NSLog("Indexer: %@", String(describing: error)) }
-        }
-        timer = DispatchSource.makeTimerSource(queue: queue)
-        timer.schedule(deadline: .now(), repeating: .milliseconds(20), leeway: .milliseconds(10))
-        timer.setEventHandler { [weak self] in
-            guard let self else { return }
-            guard !self.paused else { self.idle(); return }
-            do {
-                if try self.writer.processBatch(limit: 4096, budget: 0.2) == 0 {
-                    if Date().timeIntervalSince(self.lastReconciliation) > self.reconciliationInterval, CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!) > 60 {
-                        try self.writer.rebuild()
-                        self.lastReconciliation = Date()
-                    } else {
-                        self.idle()
-                    }
-                }
-            } catch { NSLog("Indexer: %@", String(describing: error)); self.idle() }
-        }
-        timer.resume()
-    }
-    func idle() {
-        guard !idling else { return }
-        idling = true
-        timer.schedule(deadline: .now() + 60, repeating: .seconds(60), leeway: .seconds(10))
-    }
-    func wake() {
-        guard idling else { return }
-        idling = false
-        timer.schedule(deadline: .now(), repeating: .milliseconds(20), leeway: .milliseconds(10))
-    }
     func listener(_ listener: NSXPCListener, shouldAcceptNewConnection connection: NSXPCConnection) -> Bool {
         #if !DEBUG
         var ownCode: SecCode?
@@ -67,29 +28,21 @@ final class Indexer: NSObject, NSXPCListenerDelegate, SizeIndexProtocol {
         connection.resume()
         return true
     }
-    func perform(_ reply: @escaping (Bool) -> Void, _ work: @escaping () throws -> Void) {
-        queue.async { do { try work(); self.wake(); reply(true) } catch { reply(false) } }
-    }
-    func prioritize(path: String, reply: @escaping (Bool) -> Void) {
-        perform(reply) { let url = URL(fileURLWithPath: path); try self.events.watch(url); try self.writer.prioritize(url) }
-    }
-    func refresh(path: String, reply: @escaping (Bool) -> Void) {
-        perform(reply) { try self.writer.refresh(URL(fileURLWithPath: path)) }
-    }
-    func addRoot(path: String, reply: @escaping (Bool) -> Void) {
-        perform(reply) { let url = URL(fileURLWithPath: path); try self.events.watch(url); try self.writer.addRoot(url, allowNetwork: true) }
-    }
-    func pause(reply: @escaping (Bool) -> Void) { perform(reply) { self.paused = true } }
-    func resume(reply: @escaping (Bool) -> Void) { perform(reply) { self.paused = false } }
-    func rebuild(reply: @escaping (Bool) -> Void) { perform(reply) { try self.writer.rebuild() } }
-    func status(reply: @escaping (String) -> Void) { queue.async { reply("\(self.paused ? "paused" : "running"): \(self.writer.pendingCount) pending") } }
-    func buildIdentity(reply: @escaping (String) -> Void) { reply(launchIdentity) }
+
+    func focus(paths: [String], reply: @escaping (Bool) -> Void) { daemon.focus(paths: paths, reply: reply) }
+    func refresh(paths: [String], reply: @escaping (Bool) -> Void) { daemon.refresh(paths: paths, reply: reply) }
+    func pause(reply: @escaping (Bool) -> Void) { daemon.pause(reply: reply) }
+    func resume(reply: @escaping (Bool) -> Void) { daemon.resume(reply: reply) }
+    func rebuild(reply: @escaping (Bool) -> Void) { daemon.rebuild(reply: reply) }
+    func status(reply: @escaping (String) -> Void) { daemon.status(reply: reply) }
+    func buildIdentity(reply: @escaping (String) -> Void) { reply(identity) }
 }
 
 if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--scan" {
     do {
         let start = Date()
-        let writer = try SizeIndexWriter(databaseURL: URL(fileURLWithPath: CommandLine.arguments[3]))
+        let writer = try SizeIndexWriter(databaseURL: URL(fileURLWithPath: CommandLine.arguments[3]), cacheKiB: 49152)
+        writer.scanWidth = max(1, min(4, ProcessInfo.processInfo.activeProcessorCount / 2))
         try writer.scan(URL(fileURLWithPath: CommandLine.arguments[2]))
         let seconds = Date().timeIntervalSince(start)
         let dirs = writer.directoryCount
@@ -100,22 +53,27 @@ if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--scan" {
     } catch { fputs("\(error)\n", stderr); exit(1) }
 }
 
-let launchIdentity = SizeIndexService.buildIdentity(
-    ofExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/BetterFinderIndexer"),
-    bundleVersion: Bundle.main.infoDictionary?["CFBundleVersion"] as? String
-)
+setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS, IOPOL_UTILITY)
 
-setpriority(PRIO_DARWIN_PROCESS, 0, PRIO_DARWIN_BG)
-setiopolicy_np(IOPOL_TYPE_DISK, IOPOL_SCOPE_PROCESS, IOPOL_THROTTLE)
+func makeDaemon(_ database: URL) -> SizeIndexDaemon {
+    do { return try SizeIndexDaemon(databaseURL: database) } catch { fatalError("Cannot open file index: \(error)") }
+}
 
 if CommandLine.arguments.count == 4 && CommandLine.arguments[1] == "--serve" {
-    let local = Indexer(databaseURL: URL(fileURLWithPath: CommandLine.arguments[3]), root: URL(fileURLWithPath: CommandLine.arguments[2]))
+    let local = makeDaemon(URL(fileURLWithPath: CommandLine.arguments[3]))
+    local.start(roots: [URL(fileURLWithPath: CommandLine.arguments[2])])
     withExtendedLifetime(local) { RunLoop.current.run() }
     exit(0)
 }
 
-let indexer = Indexer()
+SizeIndexLocation.removeLegacyDatabase()
+let daemon = makeDaemon(SizeIndexLocation.database)
+let service = IndexerService(daemon: daemon, identity: SizeIndexService.buildIdentity(
+    ofExecutable: Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/BetterFinderIndexer"),
+    bundleVersion: Bundle.main.infoDictionary?["CFBundleVersion"] as? String
+))
+daemon.start(roots: [FileManager.default.homeDirectoryForCurrentUser])
 let listener = NSXPCListener(machServiceName: SizeIndexService.machServiceName)
-listener.delegate = indexer
+listener.delegate = service
 listener.resume()
 RunLoop.current.run()

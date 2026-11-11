@@ -231,7 +231,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         let newItems = c.model.items
         suppressSelection += 1
         switch change {
-        case .reset:
+        case .reset, .reorder:
             c.items = newItems
             c.table.reloadData()
             var idx = IndexSet()

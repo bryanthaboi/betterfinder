@@ -212,7 +212,7 @@ final class SelectionSizeTally {
     }
 
     var pending: Int { count - finished.count }
-    var unreadable: Bool { finished.values.contains { !($0?.isComplete ?? false) } }
+    var unreadable: Bool { finished.values.contains { $0?.isUnreadable ?? true } }
     func bytes(_ unit: StatusSizeUnit) -> Int64 { latest.values.reduce(0) { $0 + unit.bytes($1) } }
 }
 
@@ -357,16 +357,16 @@ final class SizeSummaryDriver: StatusBarSegmentDriver {
             func render(_ r: SizeResult) {
                 let primary = unit.bytes(r)
                 let tip = unit.other.detail(unit.other.bytes(r))
-                if r.isComplete || (r.isPartial && !r.isStale) {
-                    setText("\(name) — \(unit.describe(primary)) · \(Self.plural(r.itemCount, "item"))\(r.isComplete ? "" : " (some items unreadable)")", tooltip: tip)
+                if r.isSettled {
+                    setText("\(name) — \(unit.describe(primary)) · \(Self.plural(r.itemCount, "item"))\(r.isUnreadable ? " (some items unreadable)" : "")", tooltip: tip)
                     spinner.setBusy(false)
-                    announceCompletion("\(name), \(unit.describe(primary)), calculation complete\(r.isComplete ? "" : ", some items unreadable")", output: output)
+                    announceCompletion("\(name), \(unit.describe(primary)), calculation complete\(r.isUnreadable ? ", some items unreadable" : "")", output: output)
                 } else {
                     setText("\(name) — calculating… \(unit.describe(primary))", tooltip: tip)
                 }
             }
-            if selectionChanged, sizes.result(for: item.url)?.isComplete != true { calculationStart = Date() }
-            if let r = sizes.result(for: item.url), r.isComplete || sizes.enabled {
+            if selectionChanged, sizes.result(for: item.url)?.isSettled != true { calculationStart = Date() }
+            if let r = sizes.result(for: item.url), r.isSettled || sizes.enabled {
                 spinner.setBusy(true)
                 render(r)
                 return

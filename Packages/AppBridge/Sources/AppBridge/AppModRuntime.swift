@@ -122,7 +122,7 @@ public final class AppModRuntime {
         services = AppModServices(environment: environment)
         services.defaults = configuration.defaults
         services.folderSize = { url in
-            guard let size = await SizeEngine.shared.cachedSize(of: url), size.isComplete || size.isPartial else { return nil }
+            guard let size = await SizeEngine.shared.cachedSize(of: url), size.isSettled else { return nil }
             return size.allocatedBytes
         }
         index = ModIndexBridge(paths: configuration.paths, url: configuration.indexURL)

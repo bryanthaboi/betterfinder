@@ -27,6 +27,7 @@ final class WindowSmokeTests: XCTestCase {
 
     func testBrowserWindowEndToEnd() throws {
         _ = NSApplication.shared
+        IndexTestHost.install()
         let dir = try makeTree()
         let wc = BrowserWindowController(location: .folder(dir))
         wc.window?.setFrame(NSRect(x: 0, y: 0, width: 1100, height: 700), display: false)

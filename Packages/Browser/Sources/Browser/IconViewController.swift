@@ -90,7 +90,7 @@ final class IconViewController: BrowserContentController, NSCollectionViewDataSo
     override func modelDidChange(_ change: FolderModel.Change) {
         guard let model = pane?.model else { return }
         switch change {
-        case .reset:
+        case .reset, .reorder:
             let sel = Set(selectedURLs.map(\.pathKey))
             items = model.items
             collection.reloadData()

@@ -126,7 +126,6 @@ public enum SettingsDefaults {
 
 public enum SizeIndexAvailability: Equatable, Sendable {
     case available
-    case notInstalled(String)
     case requiresApproval
     case unreachable(String)
 
@@ -135,8 +134,7 @@ public enum SizeIndexAvailability: Equatable, Sendable {
     public var explanation: String? {
         switch self {
         case .available: return nil
-        case .notInstalled(let reason): return reason
-        case .requiresApproval: return "The background size indexer needs approval in System Settings → General → Login Items."
+        case .requiresApproval: return "The background file indexer needs approval in System Settings → General → Login Items."
         case .unreachable(let reason): return reason
         }
     }
@@ -201,7 +199,7 @@ final class SizeIndexSettingsModel: ObservableObject {
         isChangingPause = false
         paused = controller.isIndexingPaused
         if !ok {
-            pauseError = value ? "Couldn’t pause the size indexer. It may not be running." : "Couldn’t resume the size indexer. It may not be running."
+            pauseError = value ? "Couldn’t pause the file indexer. It may not be running." : "Couldn’t resume the file indexer. It may not be running."
             availability = await controller.refreshAvailability()
         }
     }
@@ -212,7 +210,7 @@ final class SizeIndexSettingsModel: ObservableObject {
         if await controller.requestRebuild() {
             rebuild = .started
         } else {
-            rebuild = .failed("The size indexer didn’t respond, so the rebuild didn’t start.")
+            rebuild = .failed("The file indexer didn’t respond, so the rebuild didn’t start.")
             availability = await controller.refreshAvailability()
         }
     }

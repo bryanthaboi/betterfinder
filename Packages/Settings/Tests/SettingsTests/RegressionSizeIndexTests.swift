@@ -52,13 +52,13 @@ final class RegressionSizeIndexTests: XCTestCase {
         XCTAssertNil(model.pauseError)
     }
 
-    func testUnavailableHelperDisablesControlsAndExplainsFallback() async {
+    func testUnreachableIndexerDisablesControlsAndExplainsWhy() async {
         let fake = FakeSizeIndex()
-        fake.availability = .notInstalled("in-app")
+        fake.availability = .unreachable("not responding")
         let model = SizeIndexSettingsModel(controller: fake)
         await model.refresh()
         XCTAssertFalse(model.controlsEnabled)
-        XCTAssertEqual(model.availability.explanation, "in-app")
+        XCTAssertEqual(model.availability.explanation, "not responding")
         await model.requestRebuild()
         await model.setPaused(true)
         XCTAssertEqual(fake.rebuilds, 0)

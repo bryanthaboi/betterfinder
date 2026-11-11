@@ -32,8 +32,7 @@ final class RegressionReconcileTests: XCTestCase {
         XCTAssertEqual(reader.size(for: tree)?.items, 751)
         XCTAssertEqual(reader.size(for: tree)?.logicalBytes, 749 * 10 + 1000 + 3)
         XCTAssertEqual(reader.size(for: tree)?.state, .complete)
-        XCTAssertEqual(try writer.db.row("SELECT count(*) FROM entries")?[0], "751")
-        XCTAssertEqual(try writer.db.row("SELECT count(*) FROM temp.multi_work")?[0], "0")
+        XCTAssertEqual(try writer.count("files"), 751)
     }
 
     func testRenameWithinDirectoryKeepsChildTotals() throws {
@@ -81,7 +80,10 @@ final class RegressionReconcileTests: XCTestCase {
         try rescan(writer, tree)
         XCTAssertEqual(reader.size(for: tree)?.logicalBytes, 20000)
         XCTAssertEqual(reader.size(for: keep)?.logicalBytes, 20000)
-        XCTAssertEqual(try writer.db.row("SELECT count(*) FROM temp.multi_work")?[0], "0")
+        while try writer.collectGarbage(olderThan: 0) > 0 {}
+        XCTAssertEqual(try writer.count("dirs"), 2)
+        XCTAssertEqual(reader.size(for: tree)?.logicalBytes, 20000)
+        XCTAssertEqual(reader.size(for: tree)?.items, 21)
     }
 
     func testUnreadableDirectoryKeepsPreviousEntries() throws {
@@ -102,7 +104,8 @@ final class RegressionReconcileTests: XCTestCase {
         XCTAssertEqual(chmod(tree.path, 0o000), 0)
         try rescan(writer, tree)
         chmod(tree.path, 0o755)
-        XCTAssertEqual(try writer.db.row("SELECT count(*) FROM entries")?[0], "10")
+        XCTAssertEqual(try writer.count("files"), 10)
+        XCTAssertEqual(reader.size(for: tree)?.logicalBytes, 100)
         XCTAssertEqual(reader.size(for: tree)?.state, .partial)
     }
 }

@@ -281,7 +281,7 @@ struct AdvancedPane: View {
                 Text("Gives real Put Back support. Needs the Automation permission for Finder.")
                     .font(.caption).foregroundStyle(.secondary)
             }
-            Section("Size index") {
+            Section("File index") {
                 if let explanation = index.availability.explanation {
                     VStack(alignment: .leading, spacing: Spacing.relatedText) {
                         Label("Using in-app size calculation", systemImage: "info.circle")

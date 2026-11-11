@@ -367,6 +367,25 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
                 restoreScroll(anchor)
             }
             scheduleColumnRequest()
+        case .reorder:
+            let selected = Set(selectedURLs.map(\.pathKey))
+            let origin = scroll.contentView.bounds.origin
+            roots = model.items.map { reuseNode(for: $0, parent: nil) }
+            pruneIndex()
+            suppressExpansionTracking = true
+            outline.reloadData()
+            restoreExpansion()
+            suppressExpansionTracking = false
+            restoreSelection(selected)
+            if resortPending {
+                resortPending = false
+                if let first = outline.selectedRowIndexes.first { outline.scrollRowToVisible(first) } else { scrollToTop() }
+            } else {
+                let clip = scroll.contentView
+                clip.scroll(to: clip.constrainBoundsRect(NSRect(origin: origin, size: clip.bounds.size)).origin)
+                scroll.reflectScrolledClipView(clip)
+            }
+            scheduleColumnRequest()
         case .diff(let d):
             let newRoots = splice(d, items: model.items)
             roots = newRoots
@@ -567,7 +586,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
 
     override func sizeDidChange(_ key: String) {
         reloadRow(key, column: Col.size)
-        guard let pane, pane.sizes.results[key]?.isComplete == true, !registries.columns.orderedEntries.isEmpty else { return }
+        guard let pane, pane.sizes.results[key]?.isSettled == true, !registries.columns.orderedEntries.isEmpty else { return }
         columnStore.invalidate(pathKeys: [key])
         scheduleColumnRefresh()
     }
@@ -776,8 +795,8 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
                 tf.toolTip = volume.usedBytes.map { "\(SizeFormatter.string($0)) used" }
             } else if it.isBrowsableFolder {
                 if let r = pane?.sizes.result(for: it.url) {
-                    tf.stringValue = r.isComplete ? SizeFormatter.string(r.allocatedBytes) : "\(SizeFormatter.string(r.allocatedBytes))…"
-                    tf.toolTip = "\(SizeFormatter.exact(r.logicalBytes)) logical · \(r.itemCount.formatted()) items"
+                    tf.stringValue = r.isSettled ? SizeFormatter.string(r.allocatedBytes) : "\(SizeFormatter.string(r.allocatedBytes))…"
+                    tf.toolTip = "\(SizeFormatter.exact(r.logicalBytes)) logical · \(r.itemCount.formatted()) items\(r.isUnreadable ? " · some folders couldn’t be read" : "")"
                 } else {
                     tf.stringValue = "--"
                     tf.toolTip = nil

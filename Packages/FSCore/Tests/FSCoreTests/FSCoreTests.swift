@@ -13,14 +13,22 @@ final class FSCoreTests: XCTestCase {
         XCTAssertTrue(items.first { $0.name == "sub" }!.isDirectory)
     }
 
-    func testFolderSize() async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    func testFolderSizeComesFromTheIndex() async throws {
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).resolvingSymlinksInPath()
+        let dir = temp.appendingPathComponent("tree")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: dir) }
+        defer { try? FileManager.default.removeItem(at: temp) }
         try Data(count: 10_000).write(to: dir.appendingPathComponent("a.bin"))
+        let database = temp.appendingPathComponent("index.sqlite")
+        let daemon = try SizeIndexDaemon(databaseURL: database)
+        defer { daemon.stop() }
+        let engine = SizeEngine(databaseURL: database, control: daemon)
         var last = SizeResult()
-        for await r in await SizeEngine().size(of: dir) { last = r }
+        var seen = 0
+        for await r in await engine.size(of: dir) { last = r; seen += 1 }
+        XCTAssertGreaterThan(seen, 0)
         XCTAssertTrue(last.isComplete)
         XCTAssertEqual(last.logicalBytes, 10_000)
+        XCTAssertEqual(engine.snapshot(of: [dir, temp.appendingPathComponent("missing")]).map { $0?.logicalBytes }, [10_000, nil])
     }
 }

@@ -15,9 +15,8 @@ enum MiniInfoText {
         guard let result else { return "Calculating…" }
         let size = SizeFormatter.string(allocated ? result.allocatedBytes : result.logicalBytes)
         let items = result.itemCount == 1 ? "1 item" : "\(result.itemCount.formatted()) items"
-        if result.isComplete { return "\(size) · \(items)" }
-        if result.isPartial && !result.isStale { return "At least \(size) · \(items)" }
-        return "Calculating… \(size)"
+        guard result.isSettled else { return "Calculating… \(size)" }
+        return result.isUnreadable ? "At least \(size) · \(items)" : "\(size) · \(items)"
     }
 
     static func volume(free: Int64?, total: Int64?) -> String {

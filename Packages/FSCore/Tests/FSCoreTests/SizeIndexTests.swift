@@ -220,28 +220,26 @@ final class SizeIndexTests: XCTestCase {
         #endif
     }
 
-    func testLegacySchemaMigrates() throws {
+    func testForeignSchemaIsReplaced() throws {
         let temp = try temporary()
         defer { try? FileManager.default.removeItem(at: temp) }
         let tree = temp.appendingPathComponent("tree")
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
         try Data(count: 64).write(to: tree.appendingPathComponent("a"))
-        let database = temp.appendingPathComponent("legacy.sqlite")
+        let database = temp.appendingPathComponent("old.sqlite")
         do {
             let db = try IndexDatabase(database)
             try db.exec("""
-            CREATE TABLE volumes(uuid TEXT PRIMARY KEY,device INTEGER,journal TEXT,event_id TEXT);
             CREATE TABLE roots(path TEXT PRIMARY KEY);
-            CREATE TABLE directories(volume_uuid TEXT NOT NULL,inode TEXT NOT NULL,parent_inode TEXT,name TEXT,path TEXT UNIQUE,total_alloc INTEGER DEFAULT 0,total_logical INTEGER DEFAULT 0,item_count INTEGER DEFAULT 0,scanned_at REAL DEFAULT 0,state TEXT DEFAULT 'partial',PRIMARY KEY(volume_uuid,inode));
-            CREATE TABLE entries(volume_uuid TEXT,parent TEXT,name TEXT,inode TEXT,is_dir INTEGER,generation INTEGER,PRIMARY KEY(volume_uuid,parent,name));
+            CREATE TABLE directories(volume_uuid TEXT NOT NULL,inode TEXT NOT NULL,path TEXT UNIQUE,PRIMARY KEY(volume_uuid,inode));
+            CREATE TABLE entries(volume_uuid TEXT,parent TEXT,name TEXT,PRIMARY KEY(volume_uuid,parent,name));
             CREATE TRIGGER count_add AFTER INSERT ON entries BEGIN SELECT 1; END;
-            CREATE TABLE pending(path TEXT PRIMARY KEY,recursive INTEGER DEFAULT 1,priority INTEGER DEFAULT 0);
-            INSERT INTO roots VALUES('\(SizeIndexLocation.canonical(tree).path)');
+            PRAGMA user_version=2;
             """)
         }
         let writer = try SizeIndexWriter(databaseURL: database)
-        XCTAssertEqual(writer.pendingCount, 1)
-        while try writer.processBatch() > 0 {}
+        XCTAssertEqual(try writer.count("sqlite_master WHERE name IN ('directories','entries','count_add')"), 0)
+        try writer.scan(tree)
         XCTAssertEqual(try SizeIndexReader(databaseURL: database).size(for: tree)?.logicalBytes, 64)
     }
 
