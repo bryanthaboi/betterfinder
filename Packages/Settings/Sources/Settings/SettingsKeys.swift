@@ -146,6 +146,7 @@ public protocol SizeIndexControlling: AnyObject {
     func setIndexingPaused(_ paused: Bool)
     func rebuildIndex()
     var availability: SizeIndexAvailability { get }
+    var indexStatus: SizeIndexStatus? { get }
     func refreshAvailability() async -> SizeIndexAvailability
     func requestPause(_ paused: Bool) async -> Bool
     func requestRebuild() async -> Bool
@@ -153,6 +154,7 @@ public protocol SizeIndexControlling: AnyObject {
 
 public extension SizeIndexControlling {
     var availability: SizeIndexAvailability { .available }
+    var indexStatus: SizeIndexStatus? { nil }
     func refreshAvailability() async -> SizeIndexAvailability { availability }
     func requestPause(_ paused: Bool) async -> Bool {
         setIndexingPaused(paused)
@@ -175,6 +177,7 @@ final class SizeIndexSettingsModel: ObservableObject {
     @Published private(set) var isChangingPause = false
     @Published private(set) var pauseError: String?
     @Published private(set) var rebuild: RebuildStatus = .idle
+    @Published private(set) var status: SizeIndexStatus?
 
     let controller: SizeIndexControlling
 
@@ -187,8 +190,19 @@ final class SizeIndexSettingsModel: ObservableObject {
     var controlsEnabled: Bool { availability.isAvailable }
 
     func refresh() async {
-        availability = await controller.refreshAvailability()
-        paused = controller.isIndexingPaused
+        let latest = await controller.refreshAvailability()
+        if availability != latest { availability = latest }
+        if paused != controller.isIndexingPaused { paused = controller.isIndexingPaused }
+        let reported = latest.isAvailable ? controller.indexStatus : nil
+        if status != reported { status = reported }
+    }
+
+    var statusSummary: String? {
+        guard let status else { return nil }
+        let total = status.folders.formatted()
+        let waiting = status.pendingFolders.formatted()
+        if status.isPaused { return status.pendingFolders > 0 ? "Paused · \(waiting) folders waiting" : "Paused · \(total) folders indexed" }
+        return status.pendingFolders > 0 ? "Indexing · \(waiting) folders to go · \(total) found" : "Up to date · \(total) folders indexed"
     }
 
     func setPaused(_ value: Bool) async {

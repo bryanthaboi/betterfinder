@@ -1,10 +1,12 @@
 import XCTest
+import FSCore
 @testable import Settings
 
 @MainActor
 final class FakeSizeIndex: SizeIndexControlling {
     var isIndexingPaused = false
     var availability: SizeIndexAvailability = .available
+    var indexStatus: SizeIndexStatus?
     var ack = true
     var pauseRequests: [Bool] = []
     var rebuilds = 0
@@ -64,6 +66,24 @@ final class RegressionSizeIndexTests: XCTestCase {
         XCTAssertEqual(fake.rebuilds, 0)
         XCTAssertTrue(fake.pauseRequests.isEmpty)
         XCTAssertEqual(model.rebuild, .idle)
+    }
+
+    func testStatusLineFollowsTheIndexer() async {
+        let fake = FakeSizeIndex()
+        let model = SizeIndexSettingsModel(controller: fake)
+        XCTAssertNil(model.statusSummary)
+        fake.indexStatus = SizeIndexStatus(isPaused: false, pendingFolders: 40, folders: 900)
+        await model.refresh()
+        XCTAssertEqual(model.statusSummary, "Indexing · 40 folders to go · 900 found")
+        fake.indexStatus = SizeIndexStatus(isPaused: false, pendingFolders: 0, folders: 940)
+        await model.refresh()
+        XCTAssertEqual(model.statusSummary, "Up to date · 940 folders indexed")
+        fake.indexStatus = SizeIndexStatus(isPaused: true, pendingFolders: 7, folders: 940)
+        await model.refresh()
+        XCTAssertEqual(model.statusSummary, "Paused · 7 folders waiting")
+        fake.availability = .unreachable("not responding")
+        await model.refresh()
+        XCTAssertNil(model.statusSummary)
     }
 
     func testNoOpControllerReportsSuccessfulDefaults() async {

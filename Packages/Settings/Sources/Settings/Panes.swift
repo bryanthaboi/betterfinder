@@ -284,12 +284,15 @@ struct AdvancedPane: View {
             Section("File index") {
                 if let explanation = index.availability.explanation {
                     VStack(alignment: .leading, spacing: Spacing.relatedText) {
-                        Label("Using in-app size calculation", systemImage: "info.circle")
+                        Label("File indexer unavailable", systemImage: "exclamationmark.triangle")
                         Text(explanation).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                         if index.availability == .requiresApproval {
                             Button("Open Login Items") { LoginItem.openSystemSettings() }
                         }
                     }
+                }
+                if let summary = index.statusSummary {
+                    LabeledContent("Status") { Text(summary).monospacedDigit() }
                 }
                 Toggle("Pause indexing", isOn: Binding(get: { index.paused }, set: { value in
                     Task { await index.setPaused(value) }
@@ -311,7 +314,12 @@ struct AdvancedPane: View {
             }
         }
         .formStyle(.grouped)
-        .task { await index.refresh() }
+        .task {
+            while !Task.isCancelled {
+                await index.refresh()
+                try? await Task.sleep(for: .seconds(2))
+            }
+        }
     }
 
     private var rebuildFailed: Bool {

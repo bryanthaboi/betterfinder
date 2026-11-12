@@ -23,6 +23,35 @@ public enum SizeIndexService {
     }
 
     public static func unregister() async throws { guard !DemoEnvironment.isEnabled else { return }; try await SMAppService.agent(plistName: machServiceName + ".plist").unregister() }
+
+    public static let executableName = "BetterFinderIndexer"
+
+    static func processes(named name: String, parent: pid_t) -> [pid_t] {
+        var pids = [pid_t](repeating: 0, count: Int(proc_listallpids(nil, 0)) + 256)
+        let count = Int(proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.stride)))
+        guard count > 0 else { return [] }
+        let user = getuid()
+        let infoSize = Int32(MemoryLayout<proc_bsdinfo>.size)
+        var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        return pids.prefix(count).filter { pid in
+            var info = proc_bsdinfo()
+            guard pid > 0, proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, infoSize) == infoSize else { return false }
+            guard info.pbi_uid == user, info.pbi_ppid == UInt32(parent) else { return false }
+            guard proc_pidpath(pid, &path, UInt32(path.count)) > 0 else { return false }
+            return URL(fileURLWithPath: String(cString: path)).lastPathComponent == name
+        }
+    }
+
+    static func terminate(_ pids: [pid_t], timeout: TimeInterval = 5) async -> Bool {
+        let signalled = pids.filter { kill($0, SIGTERM) == 0 }
+        guard !signalled.isEmpty else { return false }
+        let deadline = Date().addingTimeInterval(timeout)
+        while signalled.contains(where: { kill($0, 0) == 0 }) {
+            if Date() >= deadline { return false }
+            try? await Task.sleep(nanoseconds: 50_000_000)
+        }
+        return true
+    }
 }
 
 private final class IndexReply<T>: @unchecked Sendable {
@@ -64,27 +93,11 @@ public final class SizeIndexClient: @unchecked Sendable, SizeIndexControl {
 
     public func terminateService() async -> Bool {
         guard !DemoEnvironment.isEnabled else { return false }
-        return await withCheckedContinuation { continuation in
-            let reply = IndexReply(continuation)
-            let connection = NSXPCConnection(machServiceName: SizeIndexService.machServiceName)
-            connection.remoteObjectInterface = NSXPCInterface(with: SizeIndexProtocol.self)
-            connection.invalidationHandler = { reply.finish(false) }
-            connection.resume()
-            let finish: (Bool) -> Void = { value in reply.finish(value); connection.invalidate() }
-            let proxy = connection.remoteObjectProxyWithErrorHandler({ _ in finish(false) }) as? SizeIndexProtocol
-            proxy?.status { _ in
-                let pid = connection.processIdentifier
-                finish(pid > 0 && kill(pid, SIGTERM) == 0)
-            }
-            DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) { finish(false) }
-        }
+        return await SizeIndexService.terminate(SizeIndexService.processes(named: SizeIndexService.executableName, parent: 1))
     }
 
     public func ensureCurrent(expected: String) async -> Bool {
-        let running = await buildIdentity()
-        guard running != expected else { return false }
-        guard await terminateService() else { return false }
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        return true
+        guard await buildIdentity() != expected else { return false }
+        return await terminateService()
     }
 }

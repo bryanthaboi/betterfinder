@@ -10,6 +10,27 @@ public protocol SizeIndexControl: AnyObject, Sendable {
     func status() async -> String
 }
 
+public struct SizeIndexStatus: Equatable, Sendable {
+    public var isPaused: Bool
+    public var pendingFolders: Int
+    public var folders: Int
+
+    public init(isPaused: Bool, pendingFolders: Int, folders: Int) {
+        self.isPaused = isPaused
+        self.pendingFolders = pendingFolders
+        self.folders = folders
+    }
+
+    public init?(_ text: String) {
+        let parts = text.split(whereSeparator: { $0 == ":" || $0 == "," || $0 == " " })
+        guard parts.count == 5, parts[2] == "pending", parts[4] == "folders", let pending = Int(parts[1]), let folders = Int(parts[3]) else { return nil }
+        guard parts[0] == "running" || parts[0] == "paused" else { return nil }
+        self.init(isPaused: parts[0] == "paused", pendingFolders: pending, folders: folders)
+    }
+
+    public var text: String { "\(isPaused ? "paused" : "running"): \(pendingFolders) pending, \(folders) folders" }
+}
+
 public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
     public let databaseURL: URL
     private let queue = DispatchQueue(label: "betterfinder.indexer", qos: .utility)
@@ -155,7 +176,7 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
     }
 
     public func status(reply: @escaping (String) -> Void) {
-        queue.async { reply("\(self.paused ? "paused" : "running"): \(self.writer.pendingCount) pending") }
+        queue.async { reply(SizeIndexStatus(isPaused: self.paused, pendingFolders: self.writer.pendingCount, folders: self.writer.directoryCount).text) }
     }
 
     public func focus(paths: [String]) async -> Bool { await withCheckedContinuation { c in focus(paths: paths) { c.resume(returning: $0) } } }

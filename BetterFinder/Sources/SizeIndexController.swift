@@ -9,6 +9,7 @@ final class SizeIndexController: SizeIndexControlling {
     private var embedded: SizeIndexDaemon?
     private(set) var isIndexingPaused = UserDefaults.standard.bool(forKey: "sizeIndexPaused")
     private(set) var availability: SizeIndexAvailability = .available
+    private(set) var indexStatus: SizeIndexStatus?
     private var registrationError: String?
 
     static var usesAgent: Bool {
@@ -49,18 +50,26 @@ final class SizeIndexController: SizeIndexControlling {
     }
 
     func refreshAvailability() async -> SizeIndexAvailability {
-        guard Self.usesAgent else { return availability }
-        switch SizeIndexService.status {
-        case .requiresApproval:
-            availability = .requiresApproval
-        case .enabled:
-            let reply = await control.status()
-            availability = reply == "unavailable"
-                ? .unreachable("The file indexer isn’t responding, so folder sizes and search results aren’t updating.")
-                : .available
-        default:
-            availability = .unreachable(registrationError.map { "The file indexer couldn’t be registered: \($0)" } ?? "The file indexer isn’t registered, so folder sizes and search results aren’t updating.")
+        if Self.usesAgent {
+            switch SizeIndexService.status {
+            case .enabled:
+                break
+            case .requiresApproval:
+                indexStatus = nil
+                availability = .requiresApproval
+                return availability
+            default:
+                indexStatus = nil
+                availability = .unreachable(registrationError.map { "The file indexer couldn’t be registered: \($0)" } ?? "The file indexer isn’t registered, so folder sizes and search results aren’t updating.")
+                return availability
+            }
+        } else if embedded == nil {
+            return availability
         }
+        indexStatus = SizeIndexStatus(await control.status())
+        availability = indexStatus == nil
+            ? .unreachable("The file indexer isn’t responding, so folder sizes and search results aren’t updating.")
+            : .available
         return availability
     }
 
