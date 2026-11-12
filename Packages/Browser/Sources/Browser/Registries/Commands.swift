@@ -197,6 +197,12 @@ enum BuiltInCommands {
             CommandSpec(id: "view.refresh", title: "Refresh", category: "View", symbolName: "arrow.clockwise", handler: send(#selector(BrowserWindowController.refresh(_:)))),
             CommandSpec(id: "view.increaseIcons", title: "Increase Icon Size", category: "View", handler: send(#selector(BrowserWindowController.increaseIconSize(_:)))),
             CommandSpec(id: "view.decreaseIcons", title: "Decrease Icon Size", category: "View", handler: send(#selector(BrowserWindowController.decreaseIconSize(_:)))),
+            CommandSpec(id: "view.spaceHog", title: "Space Hog", subtitle: "See what’s taking up space", category: "View", symbolName: "square.grid.3x3.square", handler: { c in
+                SpaceHogWindowController.shared.show(at: c.location.url ?? DemoEnvironment.home)
+            }),
+            CommandSpec(id: "view.cleanUpJunk", title: "Clean Up Junk…", subtitle: "Caches, leftovers and other things you can lose", category: "View", symbolName: "sparkles", handler: { _ in
+                JunkCleanupWindowController.shared.show()
+            }),
             CommandSpec(id: "file.newTab", title: "New Tab", category: "File", symbolName: "plus.square.on.square", handler: send(#selector(BrowserWindowController.newTab(_:)))),
             CommandSpec(id: "file.newFolder", title: "New Folder", category: "File", symbolName: "folder.badge.plus", isEnabled: { $0.controller?.activePane.canCreateFolder ?? false }, handler: send(#selector(BrowserWindowController.newFolder(_:)))),
             CommandSpec(id: "file.newFile", title: "New Text Document", category: "File", symbolName: "doc.badge.plus", isEnabled: canCreateFile, handler: send(#selector(BrowserWindowController.newTextDocument(_:)))),

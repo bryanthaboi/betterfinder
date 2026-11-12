@@ -27,6 +27,7 @@ enum MainMenu {
         appMenu.addItem(.separator())
         let et = appMenu.addItem(withTitle: "Empty Trash…", action: #selector(AppDelegate.emptyTrash(_:)), keyEquivalent: "\u{8}")
         et.keyEquivalentModifierMask = [.command, .shift]
+        appMenu.addItem(withTitle: "Clean Up Junk…", action: #selector(AppDelegate.showJunkCleanup(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         let services = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
         services.submenu = NSMenu()
@@ -101,6 +102,8 @@ enum MainMenu {
         view.addItem(.separator())
         view.addItem(item("Command Palette", Selector(("showCommandPalette:")), "p", [.command, .shift]))
         view.addItem(item("Refresh", #selector(BrowserWindowController.refresh(_:)), "r"))
+        view.addItem(.separator())
+        view.addItem(item("Space Hog", #selector(AppDelegate.showSpaceHog(_:)), "h", [.command, .control]))
         view.addItem(.separator())
         view.delegate = PanelMenuUpdater.shared
         view.addItem(item("Toggle Sidebar", #selector(NSSplitViewController.toggleSidebar(_:)), "s", [.command, .control]))

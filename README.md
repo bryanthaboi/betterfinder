@@ -20,6 +20,9 @@
 
 - **list view default.** detailed columns out of the box, sort + layout stick everywhere, never writes `.DS_Store`
 - **folder sizes.** right in the size column, straight out of a background file index. no recounting when u open a folder, renames + moves keep their size
+- **heat column.** a little colored bar per row, blue for tiny up to red for huge, same scale in every folder. click the header to sort by it
+- **space hog.** view → space hog (<kbd>⌃</kbd><kbd>⌘</kbd><kbd>H</kbd>) draws whats eating ur disk as a map, windirstat style, straight off the index so it opens instantly. double click to zoom in, tiny numbers at the bottom say how far along the index is
+- **clean up junk.** finds caches, logs, package manager leftovers, rebuildable project folders, old installers and piles of empty leftover folders. nothing is ticked for u, and everything goes to the trash
 - **space = quick look.** real system quick look, arrow keys follow along, works in list/column/icon views
 - **up button that always works.** <kbd>⌘</kbd><kbd>↑</kbd> from anywhere, incl search results + recents. selects where u came from
 - **path bar u can type in.** <kbd>⌘</kbd><kbd>L</kbd>, tab completion, `~`, paste a `file://` url
@@ -111,7 +114,7 @@ write em in `bfscript` (typed json), typescript or js. browse + install from set
 | [weather-panel](https://github.com/bryanthaboi/betterfinder-mod-weather-panel) | temp in the status bar, slide-out forecast for ur city |
 | [drop-stack](https://github.com/bryanthaboi/betterfinder-mod-drop-stack) | path finder style shelf, stash files then drop em somewhere |
 | [folder-notes](https://github.com/bryanthaboi/betterfinder-mod-folder-notes) | sticky notes per folder |
-| [size-heat](https://github.com/bryanthaboi/betterfinder-mod-size-heat) | size bars column on a fixed scale, folders included |
+| [size-heat](https://github.com/bryanthaboi/betterfinder-mod-size-heat) | size bars column on a fixed scale, folders included. built in now as the heat column, still a good example of a column mod |
 | [trash-cat](https://github.com/bryanthaboi/betterfinder-mod-trash-cat) | a cat in ur status bar that eats ur trash |
 
 turn on developer mode in settings → mods and u get a built in mcp server, so an mcp client can scaffold, test, hot load and package a mod for u. docs live in the [wiki](https://github.com/bryanthaboi/betterfinder/wiki).

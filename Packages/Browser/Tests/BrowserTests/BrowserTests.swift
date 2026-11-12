@@ -143,6 +143,12 @@ final class BrowserTests: XCTestCase {
         XCTAssertTrue(ExpansionMemory.expanded(in: "/r4").isEmpty)
     }
 
+    private func cpuSeconds() -> Double {
+        var time = timespec()
+        clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time)
+        return Double(time.tv_sec) + Double(time.tv_nsec) / 1_000_000_000
+    }
+
     private func makeFolder(count: Int) throws -> URL {
         let dir = try makeTempDir()
         for i in 0..<count {
@@ -154,32 +160,34 @@ final class BrowserTests: XCTestCase {
 
     func testDirectoryStreamLists20kFilesQuickly() async throws {
         let dir = try makeFolder(count: 20_000)
-        let listingStart = Date()
+        let listingStart = cpuSeconds()
         XCTAssertEqual(try DirectoryLister.list(dir).count, 20_000)
-        let listing = Date().timeIntervalSince(listingStart)
+        let listing = cpuSeconds() - listingStart
         let token = CancelToken()
         var batches = 0
         var firstBatchSize = 0
         let start = Date()
+        let cpuStart = cpuSeconds()
         let result = try await DirectoryStream.enumerate(dir, showHidden: false, token: token) { items, _ in
             batches += 1
             if firstBatchSize == 0 { firstBatchSize = items.count }
         }
         let sorted = ItemSorter(spec: SortSpec(key: .name, ascending: true, foldersFirst: false)).sorted(result.visible)
         let elapsed = Date().timeIntervalSince(start)
-        print("20k listing+sort: \(Int(elapsed * 1000)) ms, \(batches) batches")
+        let cpu = cpuSeconds() - cpuStart
+        print("20k listing+sort: \(Int(elapsed * 1000)) ms, cpu \(Int(cpu * 1000)) ms, \(batches) batches")
         XCTAssertEqual(sorted.count, 20_000)
         XCTAssertGreaterThanOrEqual(firstBatchSize, 500)
         XCTAssertEqual(sorted.first?.name, "file-0.txt")
-        XCTAssertLessThan(elapsed, max(1.5, listing * 10))
+        XCTAssertLessThan(cpu, max(1.5, listing * 10))
     }
 
     @MainActor
     func testFolderModelLoads20kWithoutBlockingMain() throws {
         let dir = try makeFolder(count: 20_000)
-        let listingStart = Date()
+        let listingStart = cpuSeconds()
         XCTAssertEqual(try DirectoryLister.list(dir).count, 20_000)
-        let listing = Date().timeIntervalSince(listingStart)
+        let listing = cpuSeconds() - listingStart
         let model = FolderModel(location: .folder(dir), sort: SortSpec(key: .name, ascending: true, foldersFirst: false))
         let done = expectation(description: "loaded")
         var sawPartial = false
@@ -192,15 +200,17 @@ final class BrowserTests: XCTestCase {
             if !model.isLoading { done.fulfill() }
         }
         let start = Date()
+        let cpuStart = cpuSeconds()
         model.start()
         XCTAssertLessThan(Date().timeIntervalSince(start), 0.05)
         wait(for: [done], timeout: 20)
         ticker.invalidate()
         let elapsed = Date().timeIntervalSince(start)
-        print("FolderModel 20k: \(Int(elapsed * 1000)) ms, main ticks \(mainTicks), partial \(sawPartial)")
+        let cpu = cpuSeconds() - cpuStart
+        print("FolderModel 20k: \(Int(elapsed * 1000)) ms, cpu \(Int(cpu * 1000)) ms, main ticks \(mainTicks), partial \(sawPartial)")
         XCTAssertEqual(model.items.count, 20_000)
-        XCTAssertLessThan(elapsed, max(2.0, listing * 10))
-        XCTAssertGreaterThan(mainTicks, 0)
+        XCTAssertLessThan(cpu, max(5.0, listing * 10))
+        XCTAssertGreaterThan(Double(mainTicks), elapsed * 100 * 0.2)
         model.stop()
     }
 

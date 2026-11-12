@@ -89,6 +89,8 @@ public actor SizeEngine {
         snapshot(of: [url])[0]
     }
 
+    public nonisolated var indexLocation: URL { link.location }
+
     public nonisolated func snapshot(of urls: [URL]) -> [SizeResult?] {
         guard !urls.isEmpty else { return [] }
         guard let reader = link.current() else { return urls.map { _ in nil } }

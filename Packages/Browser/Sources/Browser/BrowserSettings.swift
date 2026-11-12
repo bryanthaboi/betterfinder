@@ -69,6 +69,7 @@ enum BrowserDefaults {
         static let networkFolderSizes = "calculateFolderSizesOnNetwork"
         static let networkThumbnails = "networkThumbnails"
         static let visibleColumns = "listVisibleColumns"
+        static let heatColumnPlaced = "listHeatColumnPlaced"
         static let iconSize = "iconViewSize"
         static let showAllocatedSize = "showAllocatedSize"
         static let searchScope = "searchScope"
@@ -118,7 +119,7 @@ enum BrowserDefaults {
     static var networkFolderSizes: Bool { store.bool(forKey: Key.networkFolderSizes) }
     static var networkThumbnails: Bool { store.bool(forKey: Key.networkThumbnails) }
 
-    static let defaultColumns: [String] = ["modified", "size", "kind"]
+    static let defaultColumns: [String] = ["modified", "size", "heat", "kind"]
 
     static var visibleColumns: Set<String> {
         get { Set(store.stringArray(forKey: Key.visibleColumns) ?? defaultColumns) }

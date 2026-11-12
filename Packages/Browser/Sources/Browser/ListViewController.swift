@@ -36,13 +36,14 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         static let name = NSUserInterfaceItemIdentifier("name")
         static let modified = NSUserInterfaceItemIdentifier("modified")
         static let size = NSUserInterfaceItemIdentifier("size")
+        static let heat = NSUserInterfaceItemIdentifier("heat")
         static let kind = NSUserInterfaceItemIdentifier("kind")
         static let added = NSUserInterfaceItemIdentifier("added")
         static let created = NSUserInterfaceItemIdentifier("created")
         static let tags = NSUserInterfaceItemIdentifier("tags")
         static let dimensions = NSUserInterfaceItemIdentifier("dimensions")
         static let location = NSUserInterfaceItemIdentifier("location")
-        static let optional: [NSUserInterfaceItemIdentifier] = [modified, size, kind, added, created, tags, dimensions]
+        static let optional: [NSUserInterfaceItemIdentifier] = [modified, size, heat, kind, added, created, tags, dimensions]
     }
 
     static let dateFormatter: DateFormatter = {
@@ -77,6 +78,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         addColumn(Col.name, "Name", width: 320, sortKey: .name)
         addColumn(Col.modified, "Date Modified", width: 170, sortKey: .modified)
         addColumn(Col.size, "Size", width: 90, sortKey: .size)
+        addColumn(Col.heat, "Heat", width: 84, sortKey: .size)
         addColumn(Col.kind, "Kind", width: 140, sortKey: .kind)
         addColumn(Col.added, "Date Added", width: 170, sortKey: .added)
         addColumn(Col.created, "Date Created", width: 170, sortKey: .created)
@@ -86,6 +88,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         outline.outlineTableColumn = outline.tableColumns.first
         outline.autosaveName = "BetterFinderListColumns"
         outline.autosaveTableColumns = true
+        placeHeatColumnOnce()
         syncContributedColumns()
         applyColumnVisibility()
         columnStore.onUpdate = { [weak self] qid, keys in self?.columnValuesUpdated(qid, keys) }
@@ -117,10 +120,19 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         c.title = title
         c.width = width
         c.minWidth = id == Col.name ? 120 : 50
-        c.sortDescriptorPrototype = NSSortDescriptor(key: sortKey.rawValue, ascending: true)
+        c.sortDescriptorPrototype = id == Col.heat ? NSSortDescriptor(key: Col.heat.rawValue, ascending: false) : NSSortDescriptor(key: sortKey.rawValue, ascending: true)
         c.resizingMask = [.userResizingMask]
         if id == Col.size { c.headerCell.alignment = .right }
         outline.addTableColumn(c)
+    }
+
+    private func placeHeatColumnOnce() {
+        guard !BrowserDefaults.store.bool(forKey: BrowserDefaults.Key.heatColumnPlaced) else { return }
+        BrowserDefaults.store.set(true, forKey: BrowserDefaults.Key.heatColumnPlaced)
+        let size = outline.column(withIdentifier: Col.size)
+        let heat = outline.column(withIdentifier: Col.heat)
+        guard size >= 0, heat >= 0, heat != size + 1 else { return }
+        outline.moveColumn(heat, toColumn: heat > size ? size + 1 : size)
     }
 
     private func applyColumnVisibility() {
@@ -284,7 +296,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
 
     @objc private func resetColumns(_ sender: Any?) {
         BrowserDefaults.visibleColumns = Set(BrowserDefaults.defaultColumns)
-        let order: [NSUserInterfaceItemIdentifier] = [Col.name, Col.modified, Col.size, Col.kind, Col.added, Col.created, Col.tags, Col.dimensions, Col.location]
+        let order: [NSUserInterfaceItemIdentifier] = [Col.name, Col.modified, Col.size, Col.heat, Col.kind, Col.added, Col.created, Col.tags, Col.dimensions, Col.location]
         for (i, id) in order.enumerated() {
             let cur = outline.column(withIdentifier: id)
             if cur >= 0 && cur != i { outline.moveColumn(cur, toColumn: i) }
@@ -586,6 +598,7 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
 
     override func sizeDidChange(_ key: String) {
         reloadRow(key, column: Col.size)
+        reloadRow(key, column: Col.heat)
         guard let pane, pane.sizes.results[key]?.isSettled == true, !registries.columns.orderedEntries.isEmpty else { return }
         columnStore.invalidate(pathKeys: [key])
         scheduleColumnRefresh()
@@ -631,7 +644,10 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
 
     private func syncSortIndicator() {
         let spec = BrowserDefaults.sort
-        let key = spec.key == .custom ? ColumnRegistry.tableIdentifier(for: spec.customColumn ?? "") : spec.key.rawValue
+        var key = spec.key == .custom ? ColumnRegistry.tableIdentifier(for: spec.customColumn ?? "") : spec.key.rawValue
+        if spec.key == .size, outline.tableColumn(withIdentifier: Col.size)?.isHidden == true, outline.tableColumn(withIdentifier: Col.heat)?.isHidden == false {
+            key = Col.heat.rawValue
+        }
         syncingSort = true
         outline.sortDescriptors = [NSSortDescriptor(key: key, ascending: spec.ascending)]
         syncingSort = false
@@ -695,18 +711,30 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
     func outlineView(_ outlineView: NSOutlineView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
         guard !syncingSort, let d = outlineView.sortDescriptors.first, let raw = d.key else { return }
         var spec = BrowserDefaults.sort
+        var ascending = d.ascending
         if let qid = ColumnRegistry.qualifiedID(fromTableIdentifier: raw) {
             spec.key = .custom
             spec.customColumn = qid
+        } else if raw == Col.heat.rawValue {
+            ascending = spec.key == .size ? !spec.ascending : false
+            spec.key = .size
+            spec.customColumn = nil
         } else if let key = SortKey(rawValue: raw) {
             spec.key = key
             spec.customColumn = nil
         } else {
             return
         }
-        spec.ascending = d.ascending
+        spec.ascending = ascending
         BrowserDefaults.sort = spec
         NotificationCenter.default.post(name: .browserSortDidChange, object: nil)
+    }
+
+    func heatValue(for item: FileItem) -> (bytes: Int64?, settled: Bool) {
+        if pane?.location == .computer, let volume = VolumeInfo.details(for: item.url) { return (volume.usedBytes, true) }
+        guard item.isBrowsableFolder else { return (item.logicalSize, true) }
+        guard let result = pane?.sizes.result(for: item.url) else { return (nil, true) }
+        return (result.allocatedBytes, result.isSettled)
     }
 
     func outlineView(_ outlineView: NSOutlineView, typeSelectStringFor tableColumn: NSTableColumn?, item: Any) -> String? {
@@ -757,6 +785,12 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
         guard let node = item as? FileNode, let col = tableColumn else { return nil }
         let theme = ThemeManager.shared.current
         let id = col.identifier
+        if id == Col.heat {
+            let cell = (outlineView.makeView(withIdentifier: id, owner: self) as? HeatCellView) ?? HeatCellView(identifier: id)
+            let value = heatValue(for: node.item)
+            cell.show(bytes: value.bytes, settled: value.settled, trackColor: theme.secondaryTextColor)
+            return cell
+        }
         let cell = (outlineView.makeView(withIdentifier: id, owner: self) as? FileCellView) ?? FileCellView(identifier: id, showsIcon: id == Col.name)
         let leading = id == Col.name ? Spacing.xxs : nil
         if cell.leadingInset != leading { cell.leadingInset = leading }

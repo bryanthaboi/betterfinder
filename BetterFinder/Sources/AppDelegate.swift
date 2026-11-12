@@ -174,6 +174,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         RecentlyTrashedWindowController.shared.show()
     }
 
+    @objc func showSpaceHog(_ sender: Any?) {
+        SpaceHogWindowController.shared.showForActiveWindow()
+    }
+
+    @objc func showJunkCleanup(_ sender: Any?) {
+        JunkCleanupWindowController.shared.show()
+    }
+
     @objc func emptyTrash(_ sender: Any?) {
         Task { _ = await TrashUI.confirmAndEmptyTrash() }
     }
