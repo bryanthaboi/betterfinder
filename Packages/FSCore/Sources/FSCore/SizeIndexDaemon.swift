@@ -44,9 +44,14 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
     private var lastReverify = Date.distantPast
     private var reverifyDue = false
     private let bulkWidth: Int
+    private let stateLock = NSLock()
+    private var published = SizeIndexStatus(isPaused: false, pendingFolders: 0, folders: 0)
+    private var workingSince: Date?
+    private var countedAt = DispatchTime(uptimeNanoseconds: 0)
 
     public var reconciliationInterval: TimeInterval = 7 * 86400
     public var reverifyInterval: TimeInterval = 900
+    public var stallLimit: TimeInterval = 60
 
     public init(databaseURL: URL = SizeIndexLocation.database, cacheKiB: Int = 32768) throws {
         self.databaseURL = databaseURL
@@ -63,6 +68,32 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
             self.reverifyDue = true
             self.schedule(after: 1)
         }
+        publish(counting: true)
+    }
+
+    private func working(_ body: () -> Void) {
+        stateLock.lock()
+        workingSince = Date()
+        stateLock.unlock()
+        body()
+        stateLock.lock()
+        workingSince = nil
+        stateLock.unlock()
+    }
+
+    private func publish(counting: Bool = false) {
+        let now = DispatchTime.now()
+        let recount = counting || now.uptimeNanoseconds - countedAt.uptimeNanoseconds >= 1_000_000_000
+        let pending = writer.pendingCount
+        let folders = recount ? writer.directoryCount : nil
+        if recount { countedAt = now }
+        stateLock.lock()
+        published = SizeIndexStatus(isPaused: paused, pendingFolders: pending, folders: folders ?? published.folders)
+        stateLock.unlock()
+    }
+
+    func occupy(_ body: @escaping () -> Void) {
+        queue.async { self.working(body) }
     }
 
     deinit {
@@ -77,6 +108,7 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
                 try self.events.restore()
                 for root in roots { try self.writer.addRoot(root) }
             } catch { NSLog("Indexer: %@", String(describing: error)) }
+            self.publish(counting: true)
             self.schedule()
         }
     }
@@ -104,48 +136,53 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
         tick = nil
         deadline = .distantFuture
         guard !paused else { return }
-        do {
-            if reverifyDue, Date().timeIntervalSince(lastReverify) >= reverifyInterval {
-                reverifyDue = false
-                lastReverify = Date()
-                try writer.rebuild()
+        working {
+            do {
+                if reverifyDue, Date().timeIntervalSince(lastReverify) >= reverifyInterval {
+                    reverifyDue = false
+                    lastReverify = Date()
+                    try writer.rebuild()
+                }
+                writer.scanWidth = writer.hasBulkWork ? bulkWidth : 1
+                if try writer.processBatch(limit: 4096, budget: 0.12) > 0 {
+                    busy = true
+                    publish()
+                    schedule()
+                    return
+                }
+                if try writer.collectGarbage() > 0 { schedule(); return }
+                if busy {
+                    busy = false
+                    writer.relax()
+                }
+                publish(counting: true)
+                if Date().timeIntervalSince(lastReconciliation) > reconciliationInterval,
+                   CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!) > 60 {
+                    lastReconciliation = Date()
+                    lastReverify = Date()
+                    reverifyDue = false
+                    try writer.rebuild()
+                    schedule()
+                    return
+                }
+                let wait = reverifyDue ? max(1, reverifyInterval - Date().timeIntervalSince(lastReverify)) : 45
+                schedule(after: writer.isCooling ? min(3, wait) : min(45, wait))
+            } catch {
+                NSLog("Indexer: %@", String(describing: error))
+                schedule(after: 45)
             }
-            writer.scanWidth = writer.hasBulkWork ? bulkWidth : 1
-            if try writer.processBatch(limit: 4096, budget: 0.12) > 0 {
-                busy = true
-                schedule()
-                return
-            }
-            if try writer.collectGarbage() > 0 { schedule(); return }
-            if busy {
-                busy = false
-                writer.relax()
-            }
-            if Date().timeIntervalSince(lastReconciliation) > reconciliationInterval,
-               CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: CGEventType(rawValue: UInt32.max)!) > 60 {
-                lastReconciliation = Date()
-                lastReverify = Date()
-                reverifyDue = false
-                try writer.rebuild()
-                schedule()
-                return
-            }
-            let wait = reverifyDue ? max(1, reverifyInterval - Date().timeIntervalSince(lastReverify)) : 45
-            schedule(after: writer.isCooling ? min(3, wait) : min(45, wait))
-        } catch {
-            NSLog("Indexer: %@", String(describing: error))
-            schedule(after: 45)
         }
     }
 
     private func perform(_ work: @escaping (SizeIndexDaemon) throws -> Void, reply: @escaping (Bool) -> Void) {
         queue.async {
-            do {
-                try work(self)
-                self.schedule()
-                reply(true)
-            } catch { reply(false) }
+            self.working {
+                do { try work(self) } catch { NSLog("Indexer: %@", String(describing: error)) }
+                self.publish()
+            }
+            self.schedule()
         }
+        reply(true)
     }
 
     private func watch(_ paths: [String]) {
@@ -176,7 +213,11 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
     }
 
     public func status(reply: @escaping (String) -> Void) {
-        queue.async { reply(SizeIndexStatus(isPaused: self.paused, pendingFolders: self.writer.pendingCount, folders: self.writer.directoryCount).text) }
+        stateLock.lock()
+        let status = published
+        let stalled = workingSince.map { Date().timeIntervalSince($0) > stallLimit } ?? false
+        stateLock.unlock()
+        reply(stalled ? "unavailable" : status.text)
     }
 
     public func focus(paths: [String]) async -> Bool { await withCheckedContinuation { c in focus(paths: paths) { c.resume(returning: $0) } } }
@@ -190,6 +231,7 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
         queue.sync {
             while (try? writer.processBatch()) ?? 0 > 0 {}
             while (try? writer.collectGarbage(olderThan: 0)) ?? 0 > 0 {}
+            publish(counting: true)
         }
     }
 }
