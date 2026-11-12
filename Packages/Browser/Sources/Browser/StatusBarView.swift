@@ -376,10 +376,15 @@ final class SizeSummaryDriver: StatusBarSegmentDriver {
             guard !sizes.enabled else { return }
             let measure = self.measure
             sizeTask = Task { [weak self] in
+                var measured = false
                 for await r in await measure(item.url) {
                     guard self != nil, !Task.isCancelled else { return }
+                    measured = true
                     render(r)
                 }
+                guard self != nil, !Task.isCancelled, !measured else { return }
+                setText("\(name) — size unavailable")
+                spinner.setBusy(false)
             }
         case 1:
             let item = selection[0]

@@ -106,10 +106,14 @@ final class InfoModel: ObservableObject {
             sizeTask = Task { [weak self] in
                 var sawProgress = false
                 var announced = false
+                var measured = false
                 for await r in await SizeEngine.shared.size(of: item.url) {
                     guard let self, !Task.isCancelled else { return }
+                    measured = true
                     self.applySize(r, name: name, sawProgress: &sawProgress, announced: &announced)
                 }
+                guard let self, !Task.isCancelled, !measured else { return }
+                self.sizeText = "—"
             }
         } else {
             let l = item.logicalSize ?? 0

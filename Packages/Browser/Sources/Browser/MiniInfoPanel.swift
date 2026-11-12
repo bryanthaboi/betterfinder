@@ -133,11 +133,17 @@ final class MiniInfoModel {
         let url = url
         let measure = measure
         sizeTask = Task { [weak self] in
+            var measured = false
             for await result in await measure(url) {
                 guard let self, !Task.isCancelled else { return }
+                measured = true
                 self.apply(result)
             }
             guard let self, !Task.isCancelled else { return }
+            if !measured, self.sizeText != MiniInfoText.placeholder {
+                self.sizeText = MiniInfoText.placeholder
+                self.onChange?()
+            }
             self.isMeasuring = false
             if self.isDirty { self.scheduleRescan() }
         }

@@ -211,11 +211,12 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
 
 
     private func buildToolbar() {
-        let toolbar = NSToolbar(identifier: "BrowserToolbar2")
+        let shared = registries === BrowserRegistries.shared
+        let toolbar = NSToolbar(identifier: shared ? "BrowserToolbar2" : "BrowserToolbar2.\(ObjectIdentifier(registries).hashValue)")
         toolbar.delegate = self
         toolbar.displayMode = .iconOnly
         toolbar.allowsUserCustomization = true
-        toolbar.autosavesConfiguration = true
+        toolbar.autosavesConfiguration = shared
         window?.toolbar = toolbar
         window?.toolbarStyle = .unified
         ensureOperationsItem(in: toolbar)

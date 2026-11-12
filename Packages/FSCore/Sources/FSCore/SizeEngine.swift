@@ -147,7 +147,10 @@ public actor SizeEngine {
                     continuation.yield(Self.result(last))
                     if last.state != .stale { continuation.finish(); return }
                 }
-                _ = await link.currentControl.focus(paths: [url.path])
+                guard await link.currentControl.focus(paths: [url.path]) else {
+                    continuation.finish()
+                    return
+                }
                 var waited = 0.0
                 var interval = 0.1
                 while !Task.isCancelled {
@@ -181,7 +184,7 @@ public actor SizeEngine {
                 }
                 let control = link.currentControl
                 let wanted = scope.path == "/" ? Self.computerRoots() : [scope.path]
-                Task.detached(priority: .userInitiated) { _ = await control.focus(paths: wanted) }
+                async let accepted = control.focus(paths: wanted)
                 let searcher = SizeIndexSearcher(databaseURL: link.location)
                 var delivered = Set<String>()
                 var waited = 0.0
@@ -193,6 +196,7 @@ public actor SizeEngine {
                     delivered = pass.delivered
                     summary = IndexSearchSummary(hitLimit: pass.hitLimit, indexed: pass.found)
                     if pass.hitLimit || (pass.found && !pass.counting) { break }
+                    if !pass.found, await accepted == false { break }
                     if !pass.found && waited > 12 { break }
                     try? await Task.sleep(for: .seconds(pass.found ? 1.5 : 0.3))
                     waited += pass.found ? 1.5 : 0.3
