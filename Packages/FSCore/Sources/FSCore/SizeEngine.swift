@@ -179,7 +179,9 @@ public actor SizeEngine {
                     continuation.finish()
                     return
                 }
-                _ = await link.currentControl.focus(paths: scope.path == "/" ? Self.computerRoots() : [scope.path])
+                let control = link.currentControl
+                let wanted = scope.path == "/" ? Self.computerRoots() : [scope.path]
+                Task.detached(priority: .userInitiated) { _ = await control.focus(paths: wanted) }
                 let searcher = SizeIndexSearcher(databaseURL: link.location)
                 var delivered = Set<String>()
                 var waited = 0.0

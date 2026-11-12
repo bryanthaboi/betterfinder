@@ -8,7 +8,7 @@ struct IndexWork {
 }
 
 struct IndexListing {
-    enum Status { case ok, gone, unreadable, cancelled }
+    enum Status { case ok, gone, unreadable, cancelled, skipped }
 
     struct Child {
         var name: String
@@ -122,7 +122,7 @@ enum IndexScanner {
         return listing
     }
 
-    static func readAll(_ work: [IndexWork], width: Int, pool: [BulkDirectory], skipping excluded: Set<String>) -> [IndexListing] {
+    static func readAll(_ work: [IndexWork], width: Int, pool: [BulkDirectory], skipping excluded: Set<String>, budget: TimeInterval = 0) -> [IndexListing] {
         var siblings: [String: Int] = [:]
         if work.count > 1 {
             for item in work { if let parts = split(item.path) { siblings[parts.parent, default: 0] += 1 } }
@@ -133,8 +133,15 @@ enum IndexScanner {
             if fd >= 0 { parents[path] = fd }
         }
         defer { for fd in parents.values { close(fd) } }
+        let deadline = budget > 0 ? DispatchTime.now().uptimeNanoseconds + UInt64(budget * 1_000_000_000) : UInt64.max
+        func late(_ index: Int) -> IndexListing? {
+            guard index > 0, deadline != .max, DispatchTime.now().uptimeNanoseconds > deadline else { return nil }
+            var listing = IndexListing()
+            listing.status = .skipped
+            return listing
+        }
         guard work.count > 1, width > 1, pool.count > 1 else {
-            return withoutMaterializing { work.map { read($0, bulk: pool[0], skipping: excluded, parents: parents) } }
+            return withoutMaterializing { work.enumerated().map { late($0.offset) ?? read($0.element, bulk: pool[0], skipping: excluded, parents: parents) } }
         }
         var results = [IndexListing](repeating: IndexListing(), count: work.count)
         let lock = NSLock()
@@ -151,7 +158,7 @@ enum IndexScanner {
                         cursor += 1
                         lock.unlock()
                         guard index < work.count else { return }
-                        sendable.value[index] = read(work[index], bulk: bulk, skipping: excluded, parents: parents)
+                        sendable.value[index] = late(index) ?? read(work[index], bulk: bulk, skipping: excluded, parents: parents)
                     }
                 }
             }

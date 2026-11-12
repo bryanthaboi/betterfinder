@@ -408,4 +408,27 @@ final class IndexCoreTests: XCTestCase {
         XCTAssertEqual(try writer.count("dirs WHERE flags&\(IndexFlag.detached | IndexFlag.deferred)!=0"), 0)
         XCTAssertEqual(try writer.count("dirs"), 5)
     }
+
+    func testTinyReadBudgetStillFinishesEveryFolder() throws {
+        let temp = try temporary()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let tree = temp.appendingPathComponent("tree")
+        for a in 0..<15 {
+            for b in 0..<15 { try make(tree.appendingPathComponent("a\(a)/b\(b)"), files: ["f": 3]) }
+        }
+        for width in [1, 4] {
+            let writer = try SizeIndexWriter(databaseURL: temp.appendingPathComponent("w\(width).sqlite"))
+            writer.scanWidth = width
+            writer.readBudget = 0.000_001
+            try writer.addRoot(tree)
+            var batches = 0
+            while try writer.processBatch() > 0 { batches += 1 }
+            XCTAssertGreaterThan(batches, 0)
+            let size = try XCTUnwrap(SizeIndexReader(databaseURL: temp.appendingPathComponent("w\(width).sqlite")).size(for: tree))
+            XCTAssertEqual(size.logicalBytes, 675)
+            XCTAssertEqual(size.items, 15 + 225 + 225)
+            XCTAssertEqual(size.state, .complete)
+            XCTAssertEqual(writer.pendingCount, 0)
+        }
+    }
 }

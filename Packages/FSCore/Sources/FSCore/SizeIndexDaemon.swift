@@ -32,6 +32,7 @@ public final class SizeIndexDaemon: @unchecked Sendable, SizeIndexControl {
         writer = try SizeIndexWriter(databaseURL: databaseURL, cacheKiB: cacheKiB)
         bulkWidth = max(1, min(4, ProcessInfo.processInfo.activeProcessorCount / 2))
         events = SizeIndexEvents(writer: writer, queue: queue)
+        writer.readBudget = 0.15
         writer.rescanInterval = 3
         writer.rescanIntervalPerItem = 0.002
         events.onChange = { [weak self] in self?.schedule(after: 0.25) }

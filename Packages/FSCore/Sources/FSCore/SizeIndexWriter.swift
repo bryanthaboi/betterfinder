@@ -18,6 +18,7 @@ public final class SizeIndexWriter {
     private var pathEpoch = 0
     private(set) var focus: [Int64] = []
 
+    public var readBudget: TimeInterval = 0
     public var rescanInterval: TimeInterval = 0
     public var rescanIntervalPerItem: TimeInterval = 0
     public private(set) var isCooling = false
@@ -491,11 +492,12 @@ public final class SizeIndexWriter {
                 if work.isEmpty { break }
                 let began = DispatchTime.now().uptimeNanoseconds
                 let epoch = pathEpoch
-                let listings = IndexScanner.readAll(work, width: scanWidth, pool: pool, skipping: excluded)
+                let listings = IndexScanner.readAll(work, width: scanWidth, pool: pool, skipping: excluded, budget: readBudget)
                 let spent = DispatchTime.now().uptimeNanoseconds - began
                 if spent > 150_000_000 { chunk = max(2, chunk / 2) } else if spent < 40_000_000 { chunk = min(512, chunk * 2) }
                 for (item, listing) in zip(work, listings) {
                     if listing.status == .cancelled { cancelled = true; continue }
+                    if listing.status == .skipped { continue }
                     count += 1
                     if listing.status == .gone, epoch != pathEpoch { continue }
                     try apply(item, listing)
@@ -663,7 +665,7 @@ public final class SizeIndexWriter {
         if status == .ok, let vol = try? volumeID(device: listing.device, path: work.path), vol != row.vol { status = .gone }
 
         switch status {
-        case .cancelled:
+        case .cancelled, .skipped:
             return
         case .gone:
             if row.parent != 0 {

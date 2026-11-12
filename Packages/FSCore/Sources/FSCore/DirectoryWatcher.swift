@@ -25,12 +25,16 @@ public final class DirectoryWatcher: @unchecked Sendable {
             info: Unmanaged.passUnretained(self).toOpaque(),
             retain: nil, release: nil, copyDescription: nil
         )
-        let callback: FSEventStreamCallback = { _, info, count, eventPaths, _, _ in
+        let callback: FSEventStreamCallback = { _, info, count, eventPaths, eventFlags, _ in
             guard let info else { return }
             let watcher = Unmanaged<DirectoryWatcher>.fromOpaque(info).takeUnretainedValue()
             let cfArray = Unmanaged<CFArray>.fromOpaque(eventPaths).takeUnretainedValue()
             let list = (cfArray as? [String]) ?? []
-            watcher.handler(Array(list.prefix(count)))
+            var changed: [String] = []
+            for index in 0..<min(count, list.count) where eventFlags[index] & UInt32(kFSEventStreamEventFlagHistoryDone) == 0 {
+                changed.append(list[index])
+            }
+            if !changed.isEmpty { watcher.handler(changed) }
         }
         let flags = UInt32(
             kFSEventStreamCreateFlagUseCFTypes | kFSEventStreamCreateFlagFileEvents
@@ -38,7 +42,7 @@ public final class DirectoryWatcher: @unchecked Sendable {
         )
         guard let s = FSEventStreamCreate(
             kCFAllocatorDefault, callback, &context, paths as CFArray,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow), latency, flags
+            FSEventsGetCurrentEventId(), latency, flags
         ) else { return }
         FSEventStreamSetDispatchQueue(s, queue)
         FSEventStreamStart(s)

@@ -66,7 +66,7 @@ final class IndexedSizeBrowsingTests: XCTestCase {
 
     func testSizesArrivingWhileSortedBySizeKeepScrollPositionAndSelection() throws {
         _ = NSApplication.shared
-        IndexTestHost.install()
+        try IndexTestHost.attach(for: self)
         let savedSort = BrowserDefaults.sort
         let savedMode = BrowserDefaults.viewMode
         addTeardownBlock { await MainActor.run { BrowserDefaults.sort = savedSort; BrowserDefaults.viewMode = savedMode } }
@@ -83,7 +83,7 @@ final class IndexedSizeBrowsingTests: XCTestCase {
         wc.window?.setFrame(NSRect(x: 0, y: 0, width: 1000, height: 500), display: false)
         wc.setViewMode(.list)
         let pane = wc.activePane
-        addTeardownBlock { await MainActor.run { wc.close() } }
+        defer { wc.close() }
         XCTAssertTrue(spin { !pane.model.isLoading && pane.model.items.count == count })
         let expected = (0..<count).reversed().map { String(format: "folder-%03d", $0) }
         XCTAssertTrue(spin(until: { pane.model.items.map(\.name) == expected }, timeout: 30), "never sorted by indexed size")
