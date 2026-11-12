@@ -198,6 +198,7 @@ public final class KeyBindingRegistry: BrowserRegistry<KeyBindingSpec> {
         KeyChord(key: "return"): "Open / Rename",
         KeyChord(key: "space"): "Quick Look",
         KeyChord(key: "tab"): "Switch pane",
+        KeyChord(key: "tab", option: true): "Switch pane",
         KeyChord(key: "f2"): "Rename",
         KeyChord(key: "f5"): "Copy to other pane",
         KeyChord(key: "f6"): "Move to other pane",
@@ -217,6 +218,7 @@ public final class KeyBindingRegistry: BrowserRegistry<KeyBindingSpec> {
         case 27: return "-"
         case 30: return "]"
         case 33: return "["
+        case 41: return ";"
         case 47: return "."
         default: return nil
         }

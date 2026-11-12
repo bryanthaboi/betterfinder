@@ -817,6 +817,8 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
                 cell.attributedText = { color in RedactedText.attributed(hidden, font: font, color: color) }
             }
             cell.setAccessibilityLabel(Self.accessibilityLabel(for: it, name: HomeLabel.accessibilityName(shown, for: it.url), cut: Clipboard.shared.isCut(it.url)))
+            let row = outlineView.row(forItem: node)
+            if row >= 0 { (outlineView.rowView(atRow: row, makeIfNecessary: false) as? ThemedRowView)?.labelColor = TagColors.labelColor(for: it.url) }
         case Col.modified:
             tf.stringValue = it.dateModified.map { Self.dateFormatter.string(from: $0) } ?? "--"
         case Col.added:
@@ -892,7 +894,9 @@ final class ListViewController: BrowserContentController, NSOutlineViewDataSourc
     }
 
     func outlineView(_ outlineView: NSOutlineView, didAdd rowView: NSTableRowView, forRow row: Int) {
-        (rowView as? ThemedRowView)?.rowIndex = row
+        guard let themed = rowView as? ThemedRowView else { return }
+        themed.rowIndex = row
+        themed.labelColor = (outlineView.item(atRow: row) as? FileNode).flatMap { TagColors.labelColor(for: $0.item.url) }
     }
 
     func outlineViewSelectionDidChange(_ notification: Notification) {

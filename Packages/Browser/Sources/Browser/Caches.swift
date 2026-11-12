@@ -366,6 +366,22 @@ enum TagColors {
         Array(NSWorkspace.shared.fileLabels.dropFirst())
     }
 
+    static let labelTintAlpha: CGFloat = 0.38
+
+    static func labelColor(for tags: [DirectoryLister.UserTag]) -> NSColor? {
+        let colors = NSWorkspace.shared.fileLabelColors
+        for tag in tags.reversed() {
+            if tag.colorIndex > 0, tag.colorIndex < colors.count { return colors[tag.colorIndex] }
+            if tag.colorIndex == 0, let named = color(for: tag.name) { return named }
+        }
+        return nil
+    }
+
+    static func labelColor(for url: URL) -> NSColor? {
+        guard BrowserDefaults.coloredLabels else { return nil }
+        return labelColor(for: DirectoryLister.userTags(url))
+    }
+
     static func dot(_ color: NSColor?, size: CGFloat = 10) -> NSImage {
         NSImage(size: NSSize(width: size, height: size), flipped: false) { r in
             (color ?? .secondaryLabelColor).setFill()

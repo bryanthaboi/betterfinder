@@ -24,6 +24,16 @@ struct GeneralPane: View {
     @State private var hotKeyEnabled = GlobalHotKey.shared.isEnabled
     @State private var combo = GlobalHotKey.shared.combo
     @State private var hotKeyError: String?
+    @AppStorage(SettingsKey.coloredLabels) private var coloredLabels = false
+    @AppStorage(SettingsKey.columnAutoWidth) private var columnAutoWidth = true
+    @AppStorage(SettingsKey.colorSidebarIcons) private var colorSidebarIcons = false
+    @AppStorage(SettingsKey.dualPaneSidebars) private var dualPaneSidebars = false
+    @AppStorage(SettingsKey.visorDoubleTapOption) private var visorDoubleTap = false
+    @AppStorage(SettingsKey.visorAllSpaces) private var visorAllSpaces = true
+    @AppStorage(SettingsKey.visorAboveDock) private var visorAboveDock = false
+    @State private var visorEnabled = GlobalHotKey.visor.isEnabled
+    @State private var visorCombo = GlobalHotKey.visor.combo
+    @State private var visorError: String?
     @ObservedObject private var themes = ThemeManager.shared
 
     var body: some View {
@@ -45,6 +55,12 @@ struct GeneralPane: View {
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Toggle("Open folders in tabs in the active window", isOn: $openFoldersInTabs)
                     Text("Folders opened from other apps, the Dock or Open in New Window join the last active window as a tab. File > New Window always opens a window.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Toggle("Color sidebar icons", isOn: $colorSidebarIcons)
+                VStack(alignment: .leading, spacing: Spacing.relatedText) {
+                    Toggle("A sidebar for each pane in dual pane", isOn: $dualPaneSidebars)
+                    Text("The right pane gets its own sidebar on the right edge.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
                 Toggle("Open betterfinder at login", isOn: Binding(get: { loginEnabled }, set: setLogin))
@@ -75,6 +91,12 @@ struct GeneralPane: View {
                 }
                 Toggle("Folders first", isOn: $foldersFirst)
                 Toggle("Show hidden files", isOn: $showHidden)
+                VStack(alignment: .leading, spacing: Spacing.relatedText) {
+                    Toggle("Colored labels", isOn: $coloredLabels)
+                    Text("Tints each row and icon label with the color of its last colored tag.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                Toggle("Fit column widths to names in column view", isOn: $columnAutoWidth)
                 Toggle("Calculate folder sizes", isOn: $calcSizes)
                 Toggle("Also on network volumes", isOn: $calcSizesNetwork).disabled(!calcSizes).padding(.leading, Spacing.l)
                 Picker("Size shown", selection: $allocated) {
@@ -111,6 +133,27 @@ struct GeneralPane: View {
                 }
                 Text("Changes how your home folder is shown in the path bar, sidebar, titles and info windows. Files and paths you type are not affected.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+            Section("Visor") {
+                VStack(alignment: .leading, spacing: Spacing.relatedText) {
+                    Toggle("Global hotkey slides the visor in", isOn: Binding(get: { visorEnabled }, set: setVisor))
+                    Text(SettingsCopy.visorHelp)
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                if visorEnabled {
+                    HStack {
+                        Text("Shortcut")
+                        Spacer()
+                        HotKeyRecorder(combo: $visorCombo, onChange: changeVisorCombo, onReject: { visorError = $0 }).frame(width: 160)
+                            .accessibilityLabel("Visor shortcut")
+                    }
+                    Button("Reset to \(HotKeyCombo.visorDefault.displayString)") { changeVisorCombo(.visorDefault) }
+                        .buttonStyle(.link)
+                    Toggle("Double-tap ⌥ also toggles it", isOn: $visorDoubleTap)
+                }
+                if let visorError { Text(visorError).font(.caption).foregroundStyle(.red) }
+                Toggle("Show on all Spaces", isOn: $visorAllSpaces)
+                Toggle("Show above the Dock", isOn: $visorAboveDock)
             }
             Section("Keyboard") {
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
@@ -156,6 +199,28 @@ struct GeneralPane: View {
         } catch {
             hotKeyError = error.localizedDescription
             hotKeyEnabled = GlobalHotKey.shared.isEnabled
+        }
+    }
+
+    private func setVisor(_ on: Bool) {
+        visorError = nil
+        do {
+            try GlobalHotKey.visor.setEnabled(on)
+            visorEnabled = on
+        } catch {
+            visorError = error.localizedDescription
+            visorEnabled = GlobalHotKey.visor.isEnabled
+        }
+    }
+
+    private func changeVisorCombo(_ new: HotKeyCombo) {
+        visorError = nil
+        do {
+            try GlobalHotKey.visor.setCombo(new)
+            visorCombo = new
+        } catch {
+            visorError = error.localizedDescription
+            visorCombo = GlobalHotKey.visor.combo
         }
     }
 

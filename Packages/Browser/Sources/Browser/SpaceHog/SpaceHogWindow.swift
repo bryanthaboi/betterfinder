@@ -586,6 +586,6 @@ public final class SpaceHogWindowController: NSWindowController {
     }
 
     public func showForActiveWindow() {
-        show(at: BrowserWindowManager.shared.activeController?.location.url ?? DemoEnvironment.home)
+        show(at: BrowserWindowManager.shared.focusedController?.location.url ?? DemoEnvironment.home)
     }
 }

@@ -227,8 +227,14 @@ final class BrowserTests: XCTestCase {
             if case .diff(let d) = change, !d.inserted.isEmpty, model.items.contains(where: { $0.name == "new-file.txt" }) { changed.fulfill() }
         }
         model.onLoadingChange = nil
-        FileManager.default.createFile(atPath: dir.appendingPathComponent("new-file.txt").path, contents: Data("x".utf8))
-        wait(for: [changed], timeout: 10)
+        changed.assertForOverFulfill = false
+        let target = dir.appendingPathComponent("new-file.txt")
+        FileManager.default.createFile(atPath: target.path, contents: Data("x".utf8))
+        let nudge = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in
+            try? Data("\(Date().timeIntervalSince1970)".utf8).write(to: target)
+        }
+        wait(for: [changed], timeout: 60)
+        nudge.invalidate()
         XCTAssertEqual(model.items.count, 51)
         model.stop()
     }

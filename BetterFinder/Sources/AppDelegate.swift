@@ -37,6 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
             NSApp.activate(ignoringOtherApps: true)
         }
         GlobalHotKey.shared.restoreFromDefaults()
+        VisorController.shared.initialLocation = { .folder(NewWindowLocation.resolve()) }
+        VisorController.shared.install()
         NSApp.mainMenu = MainMenu.build()
         _ = ThemeManager.shared
     }
@@ -159,7 +161,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         if menuItem.action == #selector(toggleMCPServer(_:)) {
             menuItem.title = ModsMCP.shared.isRunning ? "Stop MCP Server" : "Start MCP Server"
         }
+        if menuItem.action == #selector(toggleVisor(_:)) {
+            menuItem.title = VisorController.shared.isShown ? "Hide Visor" : "Show Visor"
+        }
+        if menuItem.action == #selector(toggleVisorPin(_:)) {
+            menuItem.state = VisorController.shared.isPinned ? .on : .off
+        }
         return true
+    }
+
+    @objc func toggleVisor(_ sender: Any?) {
+        if VisorController.shared.isShown { VisorController.shared.hide(returnFocus: true) } else { VisorController.shared.show() }
+    }
+
+    @objc func toggleVisorPin(_ sender: Any?) {
+        VisorController.shared.togglePinned()
     }
 
     @objc func showOnboarding(_ sender: Any?) {

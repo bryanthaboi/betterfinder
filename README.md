@@ -18,7 +18,7 @@
 
 ## what it does
 
-- **list view default.** detailed columns out of the box, sort + layout stick everywhere, never writes `.DS_Store`
+- **list view default.** detailed columns out of the box, sort + layout stick everywhere, never writes `.DS_Store`. <kbd>⇧</kbd><kbd>⌘</kbd><kbd>;</kbd> keeps folders on top
 - **folder sizes.** right in the size column, straight out of a background file index. no recounting when u open a folder, renames + moves keep their size
 - **heat column.** a little colored bar per row, blue for tiny up to red for huge, same scale in every folder. click the header to sort by it
 - **space hog.** view → space hog (<kbd>⌃</kbd><kbd>⌘</kbd><kbd>H</kbd>) draws whats eating ur disk as a map, windirstat style, straight off the index so it opens instantly. double click to zoom in, tiny numbers at the bottom say how far along the index is
@@ -29,8 +29,13 @@
 - **real cut + paste.** <kbd>⌘</kbd><kbd>X</kbd> then <kbd>⌘</kbd><kbd>V</kbd> moves it. like a normal computer
 - **filter as u type.** type `*.zip` and the folder narrows instantly, or right click a kind → filter by. <kbd>esc</kbd> clears it
 - **search this folder.** <kbd>⌘</kbd><kbd>F</kbd> searches where u are, not "this mac". name search runs off the same index so its basically instant, even across ur whole home
-- **tabs + dual pane.** <kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd> for two panes, <kbd>F5</kbd>/<kbd>F6</kbd> copy/move across. folders can open in tabs like a browser if u want
+- **tabs + dual pane.** <kbd>⌘</kbd><kbd>⇧</kbd><kbd>D</kbd> or double click a tab for two panes, <kbd>F5</kbd>/<kbd>F6</kbd> copy/move across, <kbd>⌥</kbd><kbd>⇥</kbd> hops between em. each pane can have its own sidebar. folders can open in tabs like a browser if u want
+- **tabs u can drop on.** drag files onto a tab to move em there, drag a folder between two tabs to open it as a new one
+- **visor.** a window docked to the bottom of ur screen that slides up on a hotkey, quake console style. <kbd>⌥</kbd><kbd>`</kbd> or double tap <kbd>⌥</kbd>. slides away when u switch apps, pin it to keep it, shows on every space and can sit above the dock
+- **colored labels.** tagged files get the whole row tinted like old finder. list, column and icon view
+- **columns that fit.** column view sizes each column to its longest name
 - **right click that helps.** new ▸ and open in terminal are always there, w the terminal app of ur choice
+- **copy path ur way.** <kbd>⌥</kbd><kbd>⌘</kbd><kbd>C</kbd> for the plain path, or copy path as ▸ url, windows, unc, hfs or terminal escaped
 - **get info + mini info.** hold <kbd>⌥</kbd> for a small floating card. drives show capacity + whats used
 - **copy queue.** pause, resume, retry, conflict dialog w apply-to-all, undo everything, optional checksum verify
 - **put back that works.** own trash journal so put back doesnt randomly break. file → recently trashed… lists it all
@@ -38,7 +43,7 @@
 - **sftp + s3.** <kbd>⌘</kbd><kbd>K</kbd> to connect. browse, copy, move between local, sftp, s3 (r2/minio too). moves verify before deleting
 - **hide ur home name.** show it real, as `~`, custom, or blurred. for screenshots + streams
 - **status bar ur way.** reorder or turn off any item, incl ones from mods
-- **themes.** 9 built in, every one editable live. fork, tweak, export as `.bftheme`
+- **themes.** 9 built in, every one editable live. fork, tweak, export as `.bftheme`. color sidebar icons if u miss em
 - **mods.** panels, columns, toolbar buttons, commands and more. see below
 - **replaces finder.** one switch makes "show in finder" + folder opens go here. one button to undo it
 - **updates itself.** checks for new releases and swaps itself in

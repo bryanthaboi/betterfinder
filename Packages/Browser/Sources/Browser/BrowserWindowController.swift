@@ -11,7 +11,12 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     private(set) var activePane: BrowserPaneController
     public let registries: BrowserRegistries
     let sidebarController: SidebarViewController
-    private let splitController = NSSplitViewController()
+    private let splitController = BrowserSplitViewController()
+    private var sidebarItem: NSSplitViewItem?
+    private(set) var secondSidebar: SidebarViewController?
+    private var secondSidebarItem: NSSplitViewItem?
+    private var syncingSidebars = false
+    private var lastSidebarWidth: CGFloat = 0
     private let paneSplit = NSSplitViewController()
     private let contentSplit = NSSplitViewController()
     private var contentHost: ContentHostViewController?
@@ -29,6 +34,10 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     var onClose: (() -> Void)?
     var onBecomeActive: (() -> Void)?
     var isDualPane: Bool { panes.count > 1 }
+    public let isVisor: Bool
+    weak var manager: BrowserWindowManager?
+    var tabDropHighlight: TabDropHighlight?
+    private(set) var visorPinButton: NSButton?
 
     private enum ToolbarID {
         static let nav = NSToolbarItem.Identifier("nav")
@@ -47,8 +56,13 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         self.init(location: location, registries: BrowserRegistries.shared)
     }
 
-    public init(location: BrowserLocation, registries: BrowserRegistries) {
+    public convenience init(location: BrowserLocation, registries: BrowserRegistries) {
+        self.init(location: location, registries: registries, visor: false)
+    }
+
+    public init(location: BrowserLocation, registries: BrowserRegistries, visor: Bool) {
         self.registries = registries
+        self.isVisor = visor
         if registries === BrowserRegistries.shared { RemoteIntegration.installIfNeeded(into: registries) }
         sidebarController = SidebarViewController(registries: registries)
         let pane = BrowserPaneController(location: location, registries: registries)
@@ -60,7 +74,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         )
         window.minSize = NSSize(width: 560, height: 320)
         window.tabbingMode = .automatic
-        window.tabbingIdentifier = "BetterFinderBrowser"
+        window.tabbingIdentifier = visor ? VisorLayout.tabbingIdentifier : "BetterFinderBrowser"
         window.titleVisibility = .visible
         window.isReleasedWhenClosed = false
         super.init(window: window)
@@ -70,30 +84,19 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         addPane(pane)
         setActive(pane)
         window.setContentSize(NSSize(width: 1040, height: 640))
-        window.setFrameAutosaveName("BrowserWindow")
+        if visor { installVisorChrome(on: window) } else { window.setFrameAutosaveName("BrowserWindow") }
         buildToolbar()
         ThemedWindowChrome.install(on: window)
         paneLocationChanged(pane)
-        sidebarController.onSelect = { [weak self] loc in
-            guard let self else { return }
-            self.activePane.navigate(to: loc)
-            if NSApp.currentEvent?.type != .keyDown { self.activePane.focusVisibleContent() }
-        }
+        wire(sidebarController)
         window.autorecalculatesKeyViewLoop = true
         window.onFirstResponderChange = { [weak self] responder in self?.firstResponderChanged(responder) }
-        sidebarController.onOpenInNewTab = { [weak self] loc in self?.openInNewTab(loc) }
-        sidebarController.onSelectProvided = { [weak self] p in
-            guard let self else { return }
-            self.activePane.navigate(to: p)
-            if NSApp.currentEvent?.type != .keyDown { self.activePane.focusVisibleContent() }
-        }
-        sidebarController.onOpenProvidedInNewTab = { [weak self] p in self?.openInNewTab(provided: p) }
-        sidebarController.onCommand = { [weak self] id, key in
-            guard let self else { return }
-            let owner = key.components(separatedBy: "/").first ?? BrowserOwner.builtIn
-            self.registries.commands.run(CommandRegistry.reference(id, owner: owner), context: BrowserContext(controller: self))
-        }
+        splitController.onToggleSidebar = { [weak self] in self?.matchSecondSidebarCollapse() }
+        NotificationCenter.default.addObserver(self, selector: #selector(splitDidResize(_:)), name: NSSplitView.didResizeSubviewsNotification, object: splitController.splitView)
+        NotificationCenter.default.addObserver(self, selector: #selector(defaultsChanged), name: UserDefaults.didChangeNotification, object: nil)
         window.onKeyBinding = { [weak self] event in self?.handleKeyBinding(event) ?? false }
+        window.onTabDoubleClick = { [weak self] point in self?.handleTabDoubleClick(at: point) ?? false }
+        window.registerForDraggedTypes(DropSupport.types)
         registries.toolbar.addObserver(self) { [weak self] in self?.syncContributedToolbar() }
         registries.searchProviders.addObserver(self) { [weak self] in self?.rebuildSearchMenu() }
         backMenu.delegate = self
@@ -109,11 +112,164 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         if !Theme.isSystemToken(theme.colors.windowBg) { window.backgroundColor = Theme.color(theme.colors.windowBg) } else { window.backgroundColor = .windowBackgroundColor }
     }
 
+    private func installVisorChrome(on window: BrowserWindow) {
+        window.allowsOffscreenFrame = true
+        window.isMovable = false
+        window.isRestorable = false
+        window.styleMask.remove(.miniaturizable)
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        window.level = VisorLayout.level(aboveDock: VisorSettings.aboveDock)
+        window.collectionBehavior = VisorLayout.collectionBehavior(allSpaces: VisorSettings.allSpaces)
+        window.setAccessibilityLabel("Visor")
+        let button = NSButton(title: "", target: self, action: #selector(toggleVisorPin(_:)))
+        button.isBordered = false
+        button.imagePosition = .imageOnly
+        button.frame = NSRect(x: 0, y: 0, width: 30, height: 28)
+        let accessory = NSTitlebarAccessoryViewController()
+        accessory.view = button
+        accessory.layoutAttribute = .trailing
+        window.addTitlebarAccessoryViewController(accessory)
+        visorPinButton = button
+        syncVisorPin()
+        NotificationCenter.default.addObserver(self, selector: #selector(syncVisorPin), name: .visorPinDidChange, object: nil)
+    }
+
+    @objc public func toggleVisorPin(_ sender: Any?) {
+        (manager?.visor ?? .shared).togglePinned()
+    }
+
+    @objc private func syncVisorPin() {
+        guard let button = visorPinButton else { return }
+        let pinned = VisorSettings.pinned
+        button.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "pin", accessibilityDescription: nil)
+        button.contentTintColor = pinned ? .controlAccentColor : .secondaryLabelColor
+        button.toolTip = pinned ? "Pinned: the visor stays open when you switch apps" : "Keep the visor open when you switch apps"
+        button.setAccessibilityLabel("Keep visor open")
+        button.setAccessibilityValue(pinned ? "on" : "off")
+    }
+
+    public func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        guard isVisor, let visor = manager?.visor else { return frameSize }
+        return visor.constrainedSize(frameSize, for: sender)
+    }
+
+    public func windowDidEndLiveResize(_ notification: Notification) {
+        guard isVisor, let window else { return }
+        manager?.visor?.userResized(window)
+    }
+
+    private func wire(_ sidebar: SidebarViewController) {
+        sidebar.onSelect = { [weak self, weak sidebar] loc in
+            guard let self, let sidebar else { return }
+            let pane = self.boundPane(for: sidebar)
+            if pane !== self.activePane { self.setActive(pane) }
+            pane.navigate(to: loc)
+            if NSApp.currentEvent?.type != .keyDown { pane.focusVisibleContent() }
+        }
+        sidebar.onSelectProvided = { [weak self, weak sidebar] p in
+            guard let self, let sidebar else { return }
+            let pane = self.boundPane(for: sidebar)
+            if pane !== self.activePane { self.setActive(pane) }
+            pane.navigate(to: p)
+            if NSApp.currentEvent?.type != .keyDown { pane.focusVisibleContent() }
+        }
+        sidebar.onOpenInNewTab = { [weak self] loc in self?.openInNewTab(loc) }
+        sidebar.onOpenProvidedInNewTab = { [weak self] p in self?.openInNewTab(provided: p) }
+        sidebar.onCommand = { [weak self] id, key in
+            guard let self else { return }
+            let owner = key.components(separatedBy: "/").first ?? BrowserOwner.builtIn
+            self.registries.commands.run(CommandRegistry.reference(id, owner: owner), context: BrowserContext(controller: self))
+        }
+    }
+
+    func boundPane(for sidebar: SidebarViewController) -> BrowserPaneController {
+        guard let second = secondSidebar, let first = panes.first, let last = panes.last else { return activePane }
+        return sidebar === second ? last : first
+    }
+
+    private func sidebar(for pane: BrowserPaneController) -> SidebarViewController? {
+        guard let second = secondSidebar else { return pane === activePane ? sidebarController : nil }
+        return pane === panes.first ? sidebarController : second
+    }
+
+    private func highlightSidebar(for pane: BrowserPaneController) {
+        guard let sidebar = sidebar(for: pane) else { return }
+        let dest = pane.destination
+        if let p = dest.providedLocation { sidebar.highlight(provided: p) } else { sidebar.highlight(pane.location) }
+    }
+
+    @objc private func defaultsChanged() { updateSecondSidebar() }
+
+    private func updateSecondSidebar() {
+        let wanted = isDualPane && BrowserDefaults.dualPaneSidebars
+        if wanted, secondSidebar == nil {
+            let second = SidebarViewController(registries: registries)
+            wire(second)
+            let item = NSSplitViewItem(viewController: TrailingSidebarHost(sidebar: second))
+            item.minimumThickness = 160
+            item.maximumThickness = 340
+            item.canCollapse = true
+            item.holdingPriority = sidebarItem?.holdingPriority ?? NSLayoutConstraint.Priority(260)
+            secondSidebar = second
+            secondSidebarItem = item
+            splitController.addSplitViewItem(item)
+            item.isCollapsed = sidebarItem?.isCollapsed ?? false
+            let width = sidebarItem?.viewController.view.frame.width ?? 0
+            if width > 0, !item.isCollapsed {
+                lastSidebarWidth = width
+                window?.contentView?.layoutSubtreeIfNeeded()
+                setSecondSidebarWidth(width)
+            }
+            for p in panes { highlightSidebar(for: p) }
+        } else if !wanted, let second = secondSidebar {
+            if let item = secondSidebarItem { splitController.removeSplitViewItem(item) }
+            second.teardown()
+            secondSidebar = nil
+            secondSidebarItem = nil
+            highlightSidebar(for: activePane)
+        }
+    }
+
+    private func setSecondSidebarWidth(_ width: CGFloat) {
+        let split = splitController.splitView
+        let divider = splitController.splitViewItems.count - 2
+        guard divider >= 0 else { return }
+        split.setPosition(split.bounds.width - width - split.dividerThickness, ofDividerAt: divider)
+    }
+
+    private func matchSecondSidebarCollapse() {
+        guard let first = sidebarItem, let second = secondSidebarItem else { return }
+        second.animator().isCollapsed = first.isCollapsed
+    }
+
+    var sidebarWidths: (first: CGFloat, second: CGFloat?) {
+        (sidebarItem?.viewController.view.frame.width ?? 0, secondSidebarItem.map { $0.viewController.view.frame.width })
+    }
+
+    @objc private func splitDidResize(_ note: Notification) {
+        guard !syncingSidebars, let first = sidebarItem, let second = secondSidebarItem, !first.isCollapsed, !second.isCollapsed else { return }
+        let firstWidth = first.viewController.view.frame.width
+        let secondWidth = second.viewController.view.frame.width
+        guard firstWidth > 0, secondWidth > 0 else { return }
+        guard abs(firstWidth - secondWidth) > 0.5 else { lastSidebarWidth = firstWidth; return }
+        syncingSidebars = true
+        defer { syncingSidebars = false }
+        if abs(firstWidth - lastSidebarWidth) > 0.5 {
+            setSecondSidebarWidth(firstWidth)
+            lastSidebarWidth = firstWidth
+        } else {
+            splitController.splitView.setPosition(secondWidth, ofDividerAt: 0)
+            lastSidebarWidth = secondWidth
+        }
+    }
+
     private func buildContent() {
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarController)
         sidebarItem.minimumThickness = 160
         sidebarItem.maximumThickness = 340
         sidebarItem.canCollapse = true
+        self.sidebarItem = sidebarItem
         paneSplit.splitView.isVertical = true
         paneSplit.splitView.dividerStyle = .thin
         contentSplit.splitView.isVertical = false
@@ -163,6 +319,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     }
 
     private func paneLocationChanged(_ pane: BrowserPaneController) {
+        highlightSidebar(for: pane)
         guard pane === activePane else { return }
         let dest = pane.destination
         window?.title = dest.displayName
@@ -172,7 +329,6 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
             window?.standardWindowButton(.documentIconButton)?.image = IconCache.shared.fileIcon(url, size: 16)
         }
         window?.tab.title = dest.displayName
-        if let p = dest.providedLocation { sidebarController.highlight(provided: p) } else { sidebarController.highlight(pane.location) }
         syncViewModeControl()
         refreshContributedToolbarItems()
         syncSearchField()
@@ -692,6 +848,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     @objc public func getInfo(_ sender: Any?) { activePane.getInfo(sender) }
     @objc public func miniInfo(_ sender: Any?) { activePane.miniInfo(sender) }
     @objc public func copyPath(_ sender: Any?) { activePane.copyPath(sender) }
+    @objc public func toggleFoldersFirst(_ sender: Any?) { activePane.toggleFoldersFirst(sender) }
     @objc public func openInTerminal(_ sender: Any?) { activePane.openInTerminal(sender) }
     @objc public func copyToOtherPane(_ sender: Any?) { activePane.copyToOtherPane(sender) }
     @objc public func moveToOtherPane(_ sender: Any?) { activePane.moveToOtherPane(sender) }
@@ -721,6 +878,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
             addPane(second)
             for p in panes { p.isActive = p === activePane }
         }
+        updateSecondSidebar()
         refreshContributedToolbarItems()
         activePane.focusVisibleContent()
     }
@@ -757,6 +915,9 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         case #selector(toggleHiddenFiles(_:)):
             (item as? NSMenuItem)?.title = BrowserDefaults.showHidden ? "Hide Hidden Files" : "Show Hidden Files"
             return true
+        case #selector(toggleFoldersFirst(_:)):
+            (item as? NSMenuItem)?.state = BrowserDefaults.sort.foldersFirst ? .on : .off
+            return true
         default: return true
         }
     }
@@ -779,7 +940,13 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         (window as? BrowserWindow)?.onKeyBinding = nil
         registries.toolbar.removeObserver(self)
         registries.searchProviders.removeObserver(self)
+        NotificationCenter.default.removeObserver(self, name: NSSplitView.didResizeSubviewsNotification, object: splitController.splitView)
+        NotificationCenter.default.removeObserver(self, name: UserDefaults.didChangeNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .visorPinDidChange, object: nil)
+        tabDropHighlight?.removeFromSuperview()
+        tabDropHighlight = nil
         sidebarController.teardown()
+        secondSidebar?.teardown()
         panelHost?.tearDown()
         for p in panes { p.close() }
         onClose?()

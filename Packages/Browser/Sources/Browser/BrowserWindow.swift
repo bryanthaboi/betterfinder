@@ -4,6 +4,17 @@ import AppKit
 final class BrowserWindow: NSWindow {
     var onFirstResponderChange: ((NSResponder?) -> Void)?
     var onKeyBinding: ((NSEvent) -> Bool)?
+    var onTabDoubleClick: ((NSPoint) -> Bool)?
+    var allowsOffscreenFrame = false
+
+    override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
+        allowsOffscreenFrame ? frameRect : super.constrainFrameRect(frameRect, to: screen)
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown, event.clickCount == 2, onTabDoubleClick?(event.locationInWindow) == true { return }
+        super.sendEvent(event)
+    }
 
     override func makeFirstResponder(_ responder: NSResponder?) -> Bool {
         let ok = super.makeFirstResponder(responder)
@@ -26,6 +37,7 @@ final class BrowserWindow: NSWindow {
         Shortcut(key: "f", keyCode: nil, mods: .command, action: #selector(BrowserWindowController.focusSearch(_:))),
         Shortcut(key: "d", keyCode: nil, mods: [.command, .shift], action: #selector(BrowserWindowController.toggleDualPane(_:))),
         Shortcut(key: nil, keyCode: 47, mods: [.command, .shift], action: #selector(BrowserWindowController.toggleHiddenFiles(_:))),
+        Shortcut(key: nil, keyCode: 41, mods: [.command, .shift], action: #selector(BrowserWindowController.toggleFoldersFirst(_:))),
         Shortcut(key: "i", keyCode: nil, mods: .command, action: #selector(BrowserWindowController.getInfo(_:))),
         Shortcut(key: "i", keyCode: nil, mods: [.command, .option], action: #selector(BrowserWindowController.miniInfo(_:))),
         Shortcut(key: "c", keyCode: nil, mods: [.command, .option], action: #selector(BrowserWindowController.copyPath(_:))),

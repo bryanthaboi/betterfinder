@@ -16,6 +16,11 @@ public struct HotKeyCombo: Codable, Hashable, Sendable {
         modifiers: UInt32(controlKey | optionKey | cmdKey)
     )
 
+    public static let visorDefault = HotKeyCombo(
+        keyCode: UInt32(kVK_ANSI_Grave),
+        modifiers: UInt32(optionKey)
+    )
+
     public init?(event: NSEvent) {
         let mods = Self.carbonModifiers(event.modifierFlags)
         let required = UInt32(controlKey | optionKey | cmdKey)
@@ -65,29 +70,49 @@ public struct HotKeyCombo: Codable, Hashable, Sendable {
 @MainActor
 public final class GlobalHotKey {
     public static let shared = GlobalHotKey()
+    public static let visor = GlobalHotKey(
+        id: 2,
+        comboDefaultsKey: visorComboDefaultsKey,
+        enabledDefaultsKey: visorEnabledDefaultsKey,
+        defaultCombo: .visorDefault
+    )
     public static let comboDefaultsKey = "globalHotKeyCombo"
     public static let enabledDefaultsKey = "globalHotKeyEnabled"
+    public static let visorComboDefaultsKey = "visorHotKeyCombo"
+    public static let visorEnabledDefaultsKey = "visorHotKeyEnabled"
 
     public var onTrigger: (() -> Void)?
     public private(set) var isRegistered = false
     public private(set) var combo: HotKeyCombo
+    public let defaultCombo: HotKeyCombo
 
     private let defaults: UserDefaults
+    private let hotKeyID: UInt32
+    private let comboKey: String
+    private let enabledKey: String
     private var hotKeyRef: EventHotKeyRef?
     private var handlerRef: EventHandlerRef?
     private static let signature: OSType = 0x4246_4B48
 
-    public init(defaults: UserDefaults = .standard) {
+    public convenience init(defaults: UserDefaults = .standard) {
+        self.init(defaults: defaults, id: 1, comboDefaultsKey: Self.comboDefaultsKey, enabledDefaultsKey: Self.enabledDefaultsKey, defaultCombo: .default)
+    }
+
+    public init(defaults: UserDefaults = .standard, id: UInt32, comboDefaultsKey: String, enabledDefaultsKey: String, defaultCombo: HotKeyCombo) {
         self.defaults = defaults
-        if let data = defaults.data(forKey: Self.comboDefaultsKey),
+        self.hotKeyID = id
+        self.comboKey = comboDefaultsKey
+        self.enabledKey = enabledDefaultsKey
+        self.defaultCombo = defaultCombo
+        if let data = defaults.data(forKey: comboDefaultsKey),
            let saved = try? JSONDecoder().decode(HotKeyCombo.self, from: data) {
             combo = saved
         } else {
-            combo = .default
+            combo = defaultCombo
         }
     }
 
-    public var isEnabled: Bool { defaults.bool(forKey: Self.enabledDefaultsKey) }
+    public var isEnabled: Bool { defaults.bool(forKey: enabledKey) }
 
     public func restoreFromDefaults() {
         if isEnabled { try? register() } else { unregister() }
@@ -96,10 +121,10 @@ public final class GlobalHotKey {
     public func setEnabled(_ enabled: Bool) throws {
         if enabled {
             try register()
-            defaults.set(true, forKey: Self.enabledDefaultsKey)
+            defaults.set(true, forKey: enabledKey)
         } else {
             unregister()
-            defaults.set(false, forKey: Self.enabledDefaultsKey)
+            defaults.set(false, forKey: enabledKey)
         }
     }
 
@@ -113,14 +138,14 @@ public final class GlobalHotKey {
                 throw error
             }
         }
-        if let data = try? JSONEncoder().encode(newCombo) { defaults.set(data, forKey: Self.comboDefaultsKey) }
+        if let data = try? JSONEncoder().encode(newCombo) { defaults.set(data, forKey: comboKey) }
     }
 
     public func register() throws {
         unregister()
         try installHandlerIfNeeded()
         var ref: EventHotKeyRef?
-        let id = EventHotKeyID(signature: Self.signature, id: 1)
+        let id = EventHotKeyID(signature: Self.signature, id: hotKeyID)
         let status = RegisterEventHotKey(combo.keyCode, combo.modifiers, id, GetApplicationEventTarget(), 0, &ref)
         guard status == noErr, let ref else { throw IntegrationError.hotKeyRegistrationFailed(status) }
         hotKeyRef = ref
@@ -133,7 +158,14 @@ public final class GlobalHotKey {
         isRegistered = false
     }
 
+    private static var registered: [UInt32: GlobalHotKey] = [:]
+
+    private func pressed(_ id: UInt32) {
+        (id == hotKeyID ? self : Self.registered[id])?.onTrigger?()
+    }
+
     private func installHandlerIfNeeded() throws {
+        Self.registered[hotKeyID] = self
         guard handlerRef == nil else { return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
         var ref: EventHandlerRef?
@@ -145,7 +177,8 @@ public final class GlobalHotKey {
                 let got = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID), nil, MemoryLayout<EventHotKeyID>.size, nil, &id)
                 guard got == noErr, id.signature == GlobalHotKey.signature else { return OSStatus(eventNotHandledErr) }
                 let target = Unmanaged<GlobalHotKey>.fromOpaque(userData).takeUnretainedValue()
-                Task { @MainActor in target.onTrigger?() }
+                let pressed = id.id
+                Task { @MainActor in target.pressed(pressed) }
                 return noErr
             },
             1,

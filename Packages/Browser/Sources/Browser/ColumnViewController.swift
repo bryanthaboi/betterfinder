@@ -14,6 +14,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         let table = ColumnTableView()
         var items: [FileItem] = []
         var focusFirstWhenLoaded = false
+        var width: NSLayoutConstraint?
         init(url: URL?, model: FolderModel) { self.url = url; self.model = model }
     }
 
@@ -25,6 +26,36 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
     private var focusedIndex = 0
     let spring = SpringLoader()
     static let columnWidth: CGFloat = Spacing.columnWidth
+    static let fittedWidthRange: ClosedRange<CGFloat> = 160...480
+    static let fittedSampleCount = 40
+
+    static func shownName(_ it: FileItem) -> String {
+        it.isPackage ? FileManager.default.displayName(atPath: it.url.path) : HomeLabel.name(it.name, for: it.url)
+    }
+
+    static func fittedWidth(for items: [FileItem], theme: Theme, scrollerWidth: CGFloat = 0) -> CGFloat {
+        guard !items.isEmpty else { return columnWidth }
+        var longest = items
+        if longest.count > fittedSampleCount {
+            longest.sort { $0.name.utf16.count > $1.name.utf16.count }
+            longest.removeSubrange(fittedSampleCount...)
+        }
+        let attrs: [NSAttributedString.Key: Any] = [.font: theme.listFont]
+        let text = longest.reduce(CGFloat(0)) { max($0, ceil((shownName($1) as NSString).size(withAttributes: attrs).width)) }
+        let lay = theme.layout
+        let margin = lay.isAuthenticCompact ? Spacing.xxs : Spacing.xs
+        let chrome = lay.listLeadingInset + lay.listIconSize + lay.iconTextGap + margin * 2 + Spacing.columnChevronWidth + 6 + 1 + scrollerWidth
+        return min(max((text + chrome).rounded(.up), fittedWidthRange.lowerBound), fittedWidthRange.upperBound)
+    }
+
+    func columnWidths() -> [CGFloat] { columns.map { $0.width?.constant ?? 0 } }
+
+    private func fitWidth(_ c: Column) {
+        let legacy = NSScroller.preferredScrollerStyle == .legacy
+        let scroller = legacy ? NSScroller.scrollerWidth(for: .regular, scrollerStyle: .legacy) : 0
+        let target = BrowserDefaults.columnAutoWidth ? Self.fittedWidth(for: c.items, theme: ThemeManager.shared.current, scrollerWidth: scroller) : Self.columnWidth
+        if c.width?.constant != target { c.width?.constant = target }
+    }
 
     override func loadView() {
         hscroll.hasHorizontalScroller = true
@@ -60,7 +91,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
 
     override func applyTheme(_ theme: Theme) {
         hscroll.backgroundColor = theme.listBackground
-        for c in columns { style(c, theme) }
+        for c in columns { style(c, theme); fitWidth(c) }
         preview.applyTheme(theme)
     }
 
@@ -128,8 +159,10 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         c.container.addSubview(c.scroll)
         c.container.addSubview(sep)
         c.container.translatesAutoresizingMaskIntoConstraints = false
+        let width = c.container.widthAnchor.constraint(equalToConstant: Self.columnWidth)
+        c.width = width
         NSLayoutConstraint.activate([
-            c.container.widthAnchor.constraint(equalToConstant: Self.columnWidth),
+            width,
             c.scroll.topAnchor.constraint(equalTo: c.container.topAnchor),
             c.scroll.bottomAnchor.constraint(equalTo: c.container.bottomAnchor),
             c.scroll.leadingAnchor.constraint(equalTo: c.container.leadingAnchor),
@@ -151,6 +184,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         columns.append(c)
         c.items = c.model.items
         c.table.reloadData()
+        fitWidth(c)
         hidePreview()
         stack.addArrangedSubview(c.container)
         c.container.heightAnchor.constraint(equalTo: stack.heightAnchor).isActive = true
@@ -246,6 +280,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
             if !d.updated.isEmpty { c.table.reloadData(forRowIndexes: d.updated, columnIndexes: [0]) }
         }
         suppressSelection -= 1
+        fitWidth(c)
         if let i = columns.firstIndex(where: { $0 === c }), i + 1 < columns.count { syncParentSelections() }
         if c.focusFirstWhenLoaded, !c.items.isEmpty {
             c.focusFirstWhenLoaded = false
@@ -283,7 +318,10 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
     }
 
     override func refreshDisplay() {
-        for c in columns { c.table.reloadData(forRowIndexes: IndexSet(integersIn: 0..<c.table.numberOfRows), columnIndexes: [0]) }
+        for c in columns {
+            c.table.reloadData(forRowIndexes: IndexSet(integersIn: 0..<c.table.numberOfRows), columnIndexes: [0])
+            fitWidth(c)
+        }
     }
 
     override func beginRename(_ url: URL) {
@@ -444,7 +482,7 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         let cell = (tableView.makeView(withIdentifier: .init("colcell"), owner: self) as? ColumnCellView) ?? ColumnCellView()
         if cell.textField?.font != theme.listFont { cell.textField?.font = theme.listFont; cell.needsLayout = true }
         cell.normalTextColor = theme.textColor
-        let shown = it.isPackage ? FileManager.default.displayName(atPath: it.url.path) : HomeLabel.name(it.name, for: it.url)
+        let shown = Self.shownName(it)
         cell.textField?.stringValue = shown
         cell.textField?.isEditable = false
         cell.setAccessibilityLabel(ListViewController.accessibilityLabel(for: it, name: HomeLabel.accessibilityName(shown, for: it.url), cut: Clipboard.shared.isCut(it.url)))
@@ -454,12 +492,14 @@ final class ColumnViewController: BrowserContentController, NSTableViewDataSourc
         if cell.leadingInset != leading { cell.leadingInset = leading }
         cell.chevronTint = theme.secondaryTextColor
         cell.refreshTextColor()
+        (tableView.rowView(atRow: row, makeIfNecessary: false) as? ThemedRowView)?.labelColor = TagColors.labelColor(for: it.url)
         return cell
     }
 
     func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
         let r = ThemedRowView()
         r.rowIndex = row
+        if let k = column(for: tableView), columns[k].items.indices.contains(row) { r.labelColor = TagColors.labelColor(for: columns[k].items[row].url) }
         return r
     }
 

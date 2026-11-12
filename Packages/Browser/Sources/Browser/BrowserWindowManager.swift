@@ -17,6 +17,18 @@ public final class BrowserWindowManager {
 
     private(set) var controllers: [BrowserWindowController] = []
     private weak var lastActive: BrowserWindowController?
+    weak var visor: VisorController?
+
+    static func owner(of controller: BrowserWindowController) -> BrowserWindowManager {
+        controller.manager ?? .shared
+    }
+
+    var standardControllers: [BrowserWindowController] { controllers.filter { !$0.isVisor } }
+
+    var focusedController: BrowserWindowController? {
+        if let key = NSApp.keyWindow?.windowController as? BrowserWindowController, controllers.contains(where: { $0 === key }) { return key }
+        return activeController
+    }
 
     nonisolated public static func route(intent: BrowserOpenIntent, tabsPreferred: Bool, hasWindow: Bool) -> BrowserOpenRoute {
         guard intent == .request, tabsPreferred, hasWindow else { return .newWindow }
@@ -24,9 +36,10 @@ public final class BrowserWindowManager {
     }
 
     var activeController: BrowserWindowController? {
-        if let key = NSApp.keyWindow?.windowController as? BrowserWindowController, controllers.contains(where: { $0 === key }) { return key }
-        if let lastActive, controllers.contains(where: { $0 === lastActive }) { return lastActive }
-        return controllers.last
+        let standard = standardControllers
+        if let key = NSApp.keyWindow?.windowController as? BrowserWindowController, standard.contains(where: { $0 === key }) { return key }
+        if let lastActive, standard.contains(where: { $0 === lastActive }) { return lastActive }
+        return standard.last
     }
 
     @discardableResult
@@ -47,26 +60,34 @@ public final class BrowserWindowManager {
         self.registries = registries ?? .shared
     }
 
-    public var isEmpty: Bool { controllers.isEmpty }
+    public var isEmpty: Bool { standardControllers.isEmpty }
 
-    private func make(_ location: BrowserLocation) -> BrowserWindowController {
-        let wc = BrowserWindowController(location: location, registries: registries)
+    private func make(_ location: BrowserLocation, visor: Bool = false) -> BrowserWindowController {
+        let wc = BrowserWindowController(location: location, registries: registries, visor: visor)
+        wc.manager = self
         controllers.append(wc)
         wc.onClose = { [weak self, weak wc] in
-            self?.controllers.removeAll { $0 === wc }
+            guard let self, let wc else { return }
+            if wc.isVisor { self.visor?.controllerClosed(wc) }
+            self.controllers.removeAll { $0 === wc }
         }
         wc.onBecomeActive = { [weak self, weak wc] in
+            guard let wc, !wc.isVisor else { return }
             self?.lastActive = wc
         }
         return wc
     }
 
+    func openVisor(at location: BrowserLocation) -> BrowserWindowController {
+        make(location, visor: true)
+    }
+
     @discardableResult
     public func openWindow(at location: BrowserLocation = .folder(FileManager.default.homeDirectoryForCurrentUser), select: [URL] = []) -> BrowserWindowController {
         let wc = make(location)
-        if let frontmost = NSApp.keyWindow, frontmost.windowController is BrowserWindowController {
+        if let frontmost = NSApp.keyWindow, (frontmost.windowController as? BrowserWindowController)?.isVisor == false {
             wc.window?.setFrameTopLeftPoint(NSPoint(x: frontmost.frame.minX + 24, y: frontmost.frame.maxY - 24))
-        } else if controllers.count == 1 {
+        } else if standardControllers.count == 1 {
             if wc.window?.setFrameUsingName("BrowserWindow") != true { wc.window?.center() }
         } else {
             wc.window?.center()
@@ -92,10 +113,16 @@ public final class BrowserWindowManager {
 
     @discardableResult
     public func openTab(at location: BrowserLocation, select: [URL] = [], nextTo existing: BrowserWindowController?) -> BrowserWindowController {
+        openTab(at: location, select: select, nextTo: existing, ordered: .above)
+    }
+
+    @discardableResult
+    func openTab(at location: BrowserLocation, select: [URL] = [], nextTo existing: BrowserWindowController?, ordered: NSWindow.OrderingMode) -> BrowserWindowController {
         guard let host = existing?.window else { return openWindow(at: location, select: select) }
-        let wc = make(location)
+        let wc = make(location, visor: existing?.isVisor ?? false)
         if let w = wc.window {
-            host.addTabbedWindow(w, ordered: .above)
+            if wc.isVisor { w.setFrame(host.frame, display: false) }
+            host.addTabbedWindow(w, ordered: ordered)
             w.makeKeyAndOrderFront(nil)
         }
         if !select.isEmpty { wc.select(select) }
@@ -108,8 +135,9 @@ public final class BrowserWindowManager {
     }
 
     func existing(showing location: BrowserLocation) -> BrowserWindowController? {
-        if let key = NSApp.keyWindow?.windowController as? BrowserWindowController, controllers.contains(where: { $0 === key }), Self.shows(key, location) { return key }
-        return controllers.first { Self.shows($0, location) }
+        let standard = standardControllers
+        if let key = NSApp.keyWindow?.windowController as? BrowserWindowController, standard.contains(where: { $0 === key }), Self.shows(key, location) { return key }
+        return standard.first { Self.shows($0, location) }
     }
 
     public func handle(_ request: IncomingOpenRequest) {

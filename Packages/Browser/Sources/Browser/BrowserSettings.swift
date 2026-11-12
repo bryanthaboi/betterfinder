@@ -80,7 +80,16 @@ enum BrowserDefaults {
         static let openFoldersInTabs = "openFoldersInTabs"
         static let terminalAppPath = "terminalAppPath"
         static let terminalBundleID = "terminalBundleID"
+        static let coloredLabels = "coloredLabels"
+        static let columnAutoWidth = "columnAutoWidth"
+        static let colorSidebarIcons = "colorSidebarIcons"
+        static let dualPaneSidebars = "dualPaneSidebars"
     }
+
+    static var coloredLabels: Bool { store.bool(forKey: Key.coloredLabels) }
+    static var columnAutoWidth: Bool { store.object(forKey: Key.columnAutoWidth) as? Bool ?? true }
+    static var colorSidebarIcons: Bool { store.bool(forKey: Key.colorSidebarIcons) }
+    static var dualPaneSidebars: Bool { store.bool(forKey: Key.dualPaneSidebars) }
 
     static var openFoldersInTabs: Bool { store.bool(forKey: Key.openFoldersInTabs) }
     static var terminalAppPath: String? { store.string(forKey: Key.terminalAppPath) }

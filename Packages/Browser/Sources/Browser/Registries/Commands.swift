@@ -214,6 +214,8 @@ enum BuiltInCommands {
                 return pane.providedLocation == nil && (!c.selection.isEmpty || c.location.url != nil)
             }, handler: send(#selector(BrowserWindowController.miniInfo(_:)))),
             CommandSpec(id: "file.copyPath", title: "Copy Path", category: "File", symbolName: "doc.on.doc", handler: send(#selector(BrowserWindowController.copyPath(_:)))),
+            CommandSpec(id: "view.toggleFoldersFirst", title: "Keep Folders on Top", category: "View", symbolName: "folder", handler: send(#selector(BrowserWindowController.toggleFoldersFirst(_:)))),
+            CommandSpec(id: "view.switchPane", title: "Switch Pane", category: "View", symbolName: "arrow.left.arrow.right", isEnabled: { $0.controller?.isDualPane ?? false }, handler: send(#selector(BrowserWindowController.switchPane(_:)))),
             CommandSpec(id: "file.openInTerminal", title: "Open in Terminal", category: "File", symbolName: "terminal", isEnabled: { $0.controller?.activePane.terminalTarget != nil }, handler: send(#selector(BrowserWindowController.openInTerminal(_:)))),
             CommandSpec(id: "file.open", title: "Open Selection", category: "File", isEnabled: hasSelection, handler: send(#selector(BrowserPaneController.openSelection(_:)))),
             CommandSpec(id: "file.rename", title: "Rename", category: "File", isEnabled: { $0.selection.count == 1 }, handler: send(#selector(BrowserPaneController.renameSelection(_:)))),
@@ -222,7 +224,15 @@ enum BuiltInCommands {
             CommandSpec(id: "file.quickLook", title: "Quick Look", category: "File", symbolName: "eye", isEnabled: hasSelection, handler: send(#selector(BrowserPaneController.toggleQuickLook(_:)))),
             CommandSpec(id: "search.focus", title: "Search", category: "Go", symbolName: "magnifyingglass", handler: send(#selector(BrowserWindowController.focusSearch(_:)))),
         ]
-        _ = try? registry.registerBatch(specs, owner: BrowserOwner.builtIn)
+        func visor(_ c: BrowserContext) -> VisorController { c.controller?.manager?.visor ?? .shared }
+        let visorSpecs = [
+            CommandSpec(id: "window.toggleVisor", title: "Toggle Visor", subtitle: "A window that slides up from the bottom of the screen", category: "Window", symbolName: "rectangle.bottomthird.inset.filled", handler: { visor($0).toggle() }),
+            CommandSpec(id: "window.pinVisor", title: "Keep Visor Open", subtitle: "Stops the visor hiding when you switch apps", category: "Window", symbolName: "pin", handler: { visor($0).togglePinned() }),
+        ]
+        let pathSpecs = PathFormat.allCases.filter { $0 != .posix }.map { format in
+            CommandSpec(id: format.commandID, title: "Copy Path as \(format.title)", category: "File", symbolName: "doc.on.doc", isEnabled: { $0.controller?.activePane.canCopyPath(as: format) ?? false }, handler: { $0.controller?.activePane.copyPath(as: format) })
+        }
+        _ = try? registry.registerBatch(specs + pathSpecs + visorSpecs, owner: BrowserOwner.builtIn)
     }
 }
 

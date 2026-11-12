@@ -450,6 +450,46 @@ final class ContentHostViewController: NSViewController {
 }
 
 @MainActor
+final class TrailingSidebarHost: NSViewController {
+    let sidebar: SidebarViewController
+
+    init(sidebar: SidebarViewController) {
+        self.sidebar = sidebar
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func loadView() {
+        let backdrop = NSVisualEffectView()
+        backdrop.material = .sidebar
+        backdrop.blendingMode = .behindWindow
+        backdrop.state = .followsWindowActiveState
+        addChild(sidebar)
+        sidebar.view.translatesAutoresizingMaskIntoConstraints = false
+        backdrop.addSubview(sidebar.view)
+        NSLayoutConstraint.activate([
+            sidebar.view.topAnchor.constraint(equalTo: backdrop.safeAreaLayoutGuide.topAnchor),
+            sidebar.view.leadingAnchor.constraint(equalTo: backdrop.leadingAnchor),
+            sidebar.view.trailingAnchor.constraint(equalTo: backdrop.trailingAnchor),
+            sidebar.view.bottomAnchor.constraint(equalTo: backdrop.bottomAnchor),
+        ])
+        backdrop.setAccessibilityLabel("Right pane sidebar")
+        view = backdrop
+    }
+}
+
+@MainActor
+final class BrowserSplitViewController: NSSplitViewController {
+    var onToggleSidebar: (() -> Void)?
+
+    override func toggleSidebar(_ sender: Any?) {
+        super.toggleSidebar(sender)
+        onToggleSidebar?()
+    }
+}
+
+@MainActor
 final class PanelHostController: NSObject {
     @MainActor
     final class Instance {
@@ -540,7 +580,8 @@ final class PanelHostController: NSObject {
                 let idx = splitController.splitViewItems.firstIndex { $0.viewController === host } ?? splitController.splitViewItems.count
                 splitController.insertSplitViewItem(item, at: idx)
             case .right:
-                splitController.addSplitViewItem(item)
+                let idx = splitController.splitViewItems.firstIndex { $0.viewController is TrailingSidebarHost } ?? splitController.splitViewItems.count
+                splitController.insertSplitViewItem(item, at: idx)
             case .bottom:
                 contentSplit.addSplitViewItem(item)
             }

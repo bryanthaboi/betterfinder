@@ -19,6 +19,13 @@ public enum SettingsKey {
     public static let verifyCopies = "verifyCopies"
     public static let trashViaFinder = "trashViaFinder"
     public static let hasCompletedOnboarding = "hasCompletedOnboarding"
+    public static let coloredLabels = "coloredLabels"
+    public static let columnAutoWidth = "columnAutoWidth"
+    public static let colorSidebarIcons = "colorSidebarIcons"
+    public static let dualPaneSidebars = "dualPaneSidebars"
+    public static let visorDoubleTapOption = "visorDoubleTapOption"
+    public static let visorAllSpaces = "visorAllSpaces"
+    public static let visorAboveDock = "visorAboveDock"
 }
 
 public enum NewWindowLocation: String, CaseIterable, Identifiable, Sendable {
@@ -117,6 +124,13 @@ public enum SettingsDefaults {
         SettingsKey.terminalAppPath: "",
         SettingsKey.homeFolderNameStyle: HomeNameStyle.real.rawValue,
         SettingsKey.homeFolderNameCustom: "",
+        SettingsKey.coloredLabels: false,
+        SettingsKey.columnAutoWidth: true,
+        SettingsKey.colorSidebarIcons: false,
+        SettingsKey.dualPaneSidebars: false,
+        SettingsKey.visorDoubleTapOption: false,
+        SettingsKey.visorAllSpaces: true,
+        SettingsKey.visorAboveDock: false,
     ]
 
     public static func register(in defaults: UserDefaults = .standard) {
@@ -241,5 +255,6 @@ public final class NoOpSizeIndexController: SizeIndexControlling {
 }
 
 public enum SettingsCopy {
+    public static let visorHelp = "A betterfinder window docked to the bottom of the screen. It slides away when you switch apps unless you pin it. Window > Show Visor works without the hotkey."
     public static let windowsKeysHelp = "Return opens, F2 renames, Backspace goes up, F5 refreshes and Delete moves to the Trash. Copy to Other Pane moves to ⇧F5. Mac shortcuts keep working."
 }

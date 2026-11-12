@@ -51,6 +51,7 @@ enum ContextMenuBuilder {
                 addInfo()
                 add("Open in Terminal", #selector(BrowserPaneController.openInTerminal(_:)))
                 add("Copy Path", #selector(BrowserPaneController.copyPath(_:)), "c", [.command, .option])
+                menu.addItem(CopyPathMenu.submenuItem(target: pane))
                 add("Add to Sidebar", #selector(BrowserPaneController.revealInSidebarFavorites(_:)), "t", [.command, .control])
                 menu.addItem(.separator())
             }
@@ -100,6 +101,7 @@ enum ContextMenuBuilder {
         add("Copy", #selector(BrowserPaneController.copy(_:)), "c")
         add("Paste", #selector(BrowserPaneController.paste(_:)), "v")
         add("Copy Path", #selector(BrowserPaneController.copyPath(_:)), "c", [.command, .option])
+        if pane.remoteController == nil { menu.addItem(CopyPathMenu.submenuItem(target: pane)) }
         if dual {
             menu.addItem(.separator())
             add("Copy to Other Pane", #selector(BrowserPaneController.copyToOtherPane(_:)), String(Character(UnicodeScalar(NSF5FunctionKey)!)), BrowserDefaults.returnOpens ? [.shift] : [])

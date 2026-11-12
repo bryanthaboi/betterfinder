@@ -156,12 +156,40 @@ final class ThemedRowView: ThemedTableRowView {
         for case let cell as FileCellView in subviews { cell.refreshTextColor() }
     }
 
+    var labelColor: NSColor? {
+        didSet { if oldValue != labelColor { needsDisplay = true } }
+    }
+
+    var labelRect: NSRect {
+        ListRenderer.selectionRect(for: bounds, theme: theme, flipped: isFlipped)
+    }
+
+    private func labelPath(_ rect: NSRect) -> NSBezierPath {
+        let radius = min(CGFloat(theme.metrics.cornerRadius), rect.height / 2)
+        return radius > 0 ? NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius) : NSBezierPath(rect: rect)
+    }
+
     override func drawBackground(in dirtyRect: NSRect) {
         let theme = MainActor.assumeIsolated { ThemeManager.shared.current }
-        guard !theme.usesSystemListColors else { super.drawBackground(in: dirtyRect); return }
-        let row = (superview as? NSTableView).map { $0.row(for: self) }.flatMap { $0 >= 0 ? $0 : nil } ?? rowIndex
-        (row % 2 == 1 ? theme.alternateRow : theme.listBackground).setFill()
-        bounds.fill()
+        if theme.usesSystemListColors {
+            super.drawBackground(in: dirtyRect)
+        } else {
+            let row = (superview as? NSTableView).map { $0.row(for: self) }.flatMap { $0 >= 0 ? $0 : nil } ?? rowIndex
+            (row % 2 == 1 ? theme.alternateRow : theme.listBackground).setFill()
+            bounds.fill()
+        }
+        guard let labelColor, !isSelected else { return }
+        labelColor.withAlphaComponent(TagColors.labelTintAlpha).setFill()
+        labelPath(labelRect).fill()
+    }
+
+    override func drawSelection(in dirtyRect: NSRect) {
+        super.drawSelection(in: dirtyRect)
+        guard let labelColor else { return }
+        labelColor.setStroke()
+        let ring = labelPath(labelRect.insetBy(dx: 1, dy: 1))
+        ring.lineWidth = 2
+        ring.stroke()
     }
 
     override func setFrameOrigin(_ newOrigin: NSPoint) {

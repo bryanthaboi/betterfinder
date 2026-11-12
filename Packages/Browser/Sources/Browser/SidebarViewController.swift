@@ -142,15 +142,39 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
 
     private var lastKnownTags: [String] = []
     private var lastHomeDisplay = HomeLabel.display
+    private var lastColorIcons = BrowserDefaults.colorSidebarIcons
 
     @objc private func defaultsChanged() {
         let tags = BrowserDefaults.knownTags
         let home = HomeLabel.display
-        if tags != lastKnownTags || home != lastHomeDisplay {
+        let colorIcons = BrowserDefaults.colorSidebarIcons
+        if tags != lastKnownTags || home != lastHomeDisplay || colorIcons != lastColorIcons {
             lastKnownTags = tags
             lastHomeDisplay = home
+            lastColorIcons = colorIcons
             rebuild()
         }
+    }
+
+    static func colorIcon(for entry: Entry) -> NSImage? {
+        switch entry.kind {
+        case .computer:
+            return NSImage(named: NSImage.computerName)
+        case .favorite, .cloud, .volume:
+            guard let url = entry.location.url else { return nil }
+            return IconCache.shared.fileIcon(url, size: SidebarCellView.iconSize)
+        default:
+            return nil
+        }
+    }
+
+    func iconIsTinted(forEntryTitled title: String) -> Bool? {
+        for row in 0..<outline.numberOfRows {
+            guard let b = outline.item(atRow: row) as? EntryBox, b.entry.title == title,
+                  let cell = outline.view(atColumn: 0, row: row, makeIfNecessary: true) as? SidebarCellView else { continue }
+            return cell.normalIconColor != nil
+        }
+        return nil
     }
 
     func applyTheme(_ theme: Theme) {
@@ -389,7 +413,10 @@ final class SidebarViewController: NSViewController, NSOutlineViewDataSource, NS
         cell.iconTextGap = theme.layout.isAuthenticCompact ? Spacing.xxs : Spacing.iconText
         cell.normalTextColor = Theme.color(theme.colors.sidebarText)
         cell.selectedTextColor = Theme.color(theme.colors.sidebarSelectionText)
-        if let s = b.entry.symbol {
+        if BrowserDefaults.colorSidebarIcons, let icon = Self.colorIcon(for: b.entry) {
+            cell.imageView?.image = icon
+            cell.normalIconColor = nil
+        } else if let s = b.entry.symbol {
             cell.imageView?.image = NSImage(systemSymbolName: s, accessibilityDescription: nil)
             cell.normalIconColor = Theme.color(theme.colors.sidebarIcon)
         } else {

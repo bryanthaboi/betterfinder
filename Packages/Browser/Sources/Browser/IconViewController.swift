@@ -189,6 +189,7 @@ final class IconViewController: BrowserContentController, NSCollectionViewDataSo
         item.iconSize = iconSize
         let dim: CGFloat = Clipboard.shared.isCut(it.url) ? 0.4 : (it.isHidden ? 0.5 : 1)
         item.imageView?.alphaValue = dim
+        item.tagColor = TagColors.labelColor(for: it.url)
         let key = it.url.pathKey
         if let thumb = ThumbnailCache.shared.cached(it.url, size: iconSize) {
             item.imageView?.image = thumb
@@ -373,6 +374,7 @@ final class IconItem: NSCollectionViewItem {
     }
 
     var isDropTarget = false { didSet { updateAppearance() } }
+    var tagColor: NSColor? { didSet { if oldValue != tagColor { updateAppearance() } } }
 
     override var isSelected: Bool { didSet { updateAppearance() } }
     override var highlightState: NSCollectionViewItem.HighlightState { didSet { updateAppearance() } }
@@ -473,7 +475,7 @@ final class IconItem: NSCollectionViewItem {
         highlight.layer?.backgroundColor = marked ? resolved(NSColor.labelColor.withAlphaComponent(isDropTarget ? 0.25 : 0.12)) : NSColor.clear.cgColor
         highlight.layer?.borderWidth = marked && contrast ? 2 : 0
         highlight.layer?.borderColor = marked && contrast ? resolved(outlineColor) : nil
-        let labelFill: NSColor? = on ? labelSelectionColor : (labelShape == .none ? nil : labelBackgroundColor)
+        let labelFill: NSColor? = on ? labelSelectionColor : (tagColor?.withAlphaComponent(TagColors.labelTintAlpha) ?? (labelShape == .none ? nil : labelBackgroundColor))
         labelBackground.layer?.backgroundColor = labelFill.map(resolved) ?? NSColor.clear.cgColor
         labelBackground.layer?.borderWidth = on && contrast ? 1 : 0
         labelBackground.layer?.borderColor = on && contrast ? resolved(selectedTextColor) : nil
@@ -486,6 +488,7 @@ final class IconItem: NSCollectionViewItem {
         representedURL = nil
         hasThumbnail = false
         isDropTarget = false
+        tagColor = nil
         imageView?.image = nil
     }
 }

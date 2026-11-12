@@ -48,11 +48,11 @@ enum TerminalApp {
 
 @MainActor
 enum FileCommands {
-    static func copyPaths(_ urls: [URL]) {
-        guard !urls.isEmpty else { return }
+    static func copyPaths(_ urls: [URL], format: PathFormat = .posix) {
+        guard let text = format.string(for: urls) else { NSSound.beep(); return }
         let pb = NSPasteboard.general
         pb.clearContents()
-        pb.setString(urls.map(\.path).joined(separator: "\n"), forType: .string)
+        pb.setString(text, forType: .string)
     }
 
     static func openInTerminal(_ dir: URL) {

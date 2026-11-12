@@ -77,14 +77,33 @@ public enum DirectoryLister {
         }
     }
 
-    static func tagNames(_ url: URL) -> [String] {
+    public struct UserTag: Hashable, Sendable {
+        public var name: String
+        public var colorIndex: Int
+
+        public init(name: String, colorIndex: Int) {
+            self.name = name
+            self.colorIndex = colorIndex
+        }
+
+        public init(raw: String) {
+            let parts = raw.components(separatedBy: "\n")
+            self.init(name: parts.first ?? raw, colorIndex: parts.count > 1 ? Int(parts[1]) ?? 0 : 0)
+        }
+    }
+
+    public static func userTags(_ url: URL) -> [UserTag] {
         let key = "com.apple.metadata:_kMDItemUserTags"
         let length = getxattr(url.path, key, nil, 0, 0, XATTR_NOFOLLOW)
         guard length > 0, length <= 65536 else { return [] }
         var data = Data(count: length)
         let count = data.withUnsafeMutableBytes { getxattr(url.path, key, $0.baseAddress, length, 0, XATTR_NOFOLLOW) }
         guard count == length, let tags = (try? PropertyListSerialization.propertyList(from: data, format: nil)) as? [String] else { return [] }
-        return tags.map { $0.components(separatedBy: "\n").first ?? $0 }
+        return tags.map(UserTag.init(raw:))
+    }
+
+    static func tagNames(_ url: URL) -> [String] {
+        userTags(url).map(\.name)
     }
 
     public static func item(for url: URL) -> FileItem? {

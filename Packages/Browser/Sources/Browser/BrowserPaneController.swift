@@ -181,8 +181,17 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     private var lastShowHidden = false
     private var lastFoldersFirst = false
     private var lastHomeDisplay = HomeLabel.display
+    private var lastColoredLabels = BrowserDefaults.coloredLabels
+    private var lastColumnAutoWidth = BrowserDefaults.columnAutoWidth
 
     @objc private func defaultsChanged() {
+        let labels = BrowserDefaults.coloredLabels
+        let autoWidth = BrowserDefaults.columnAutoWidth
+        if labels != lastColoredLabels || autoWidth != lastColumnAutoWidth {
+            lastColoredLabels = labels
+            lastColumnAutoWidth = autoWidth
+            content.refreshDisplay()
+        }
         let home = HomeLabel.display
         if home != lastHomeDisplay {
             lastHomeDisplay = home
@@ -900,7 +909,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
             return true
         case 117 where flags.isEmpty && windowsKeys:
             moveToTrash(nil); return true
-        case 48 where flags.isEmpty:
+        case 48 where flags.isEmpty || flags == .option:
             if windowController?.isDualPane == true { windowController?.switchPane(nil); return true }
             return false
         case 96 where flags.isEmpty:
@@ -1116,8 +1125,26 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
 
     @objc func copyPath(_ sender: Any?) {
         if let r = remote { r.copyPath(); return }
-        let urls = selectedURLs.isEmpty ? (location.url.map { [$0] } ?? []) : selectedURLs
-        FileCommands.copyPaths(urls)
+        FileCommands.copyPaths(pathTargets)
+    }
+
+    var pathTargets: [URL] {
+        guard remote == nil else { return [] }
+        return selectedURLs.isEmpty ? (location.url.map { [$0] } ?? []) : selectedURLs
+    }
+
+    func canCopyPath(as format: PathFormat) -> Bool {
+        let urls = pathTargets
+        return !urls.isEmpty && format.string(for: urls) != nil
+    }
+
+    func copyPath(as format: PathFormat) {
+        FileCommands.copyPaths(pathTargets, format: format)
+    }
+
+    @objc func copyPathAs(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let format = PathFormat(rawValue: raw) else { return }
+        copyPath(as: format)
     }
 
     var terminalTarget: URL? {
@@ -1268,6 +1295,8 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
              #selector(showInEnclosingFolder(_:)), #selector(toggleTag(_:)), #selector(showPackageContents(_:)), #selector(openInNewTab(_:)),
              #selector(openInNewWindow(_:)), #selector(revealInSidebarFavorites(_:)), #selector(putBack(_:)):
             return false
+        case #selector(copyPathAs(_:)):
+            return false
         case #selector(copyPath(_:)), #selector(refresh(_:)), #selector(showRecentlyTrashed(_:)):
             return true
         default:
@@ -1317,6 +1346,9 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         case #selector(toggleFoldersFirst(_:)):
             menuItem.state = BrowserDefaults.sort.foldersFirst ? .on : .off
             return true
+        case #selector(copyPathAs(_:)):
+            guard let raw = menuItem.representedObject as? String, let format = PathFormat(rawValue: raw) else { return false }
+            return canCopyPath(as: format)
         case #selector(sortByMenu(_:)):
             let spec = BrowserDefaults.sort
             menuItem.state = (menuItem.representedObject as? String) == spec.key.rawValue ? .on : .off

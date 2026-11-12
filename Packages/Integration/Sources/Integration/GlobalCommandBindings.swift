@@ -187,7 +187,7 @@ public final class GlobalCommandBindingRegistry {
     ) {
         self.backend = backend ?? CarbonHotKeyBackend()
         self.reservedByApp = reservedByApp ?? {
-            GlobalHotKey.shared.isEnabled ? [GlobalHotKey.shared.combo] : []
+            [GlobalHotKey.shared, GlobalHotKey.visor].filter(\.isEnabled).map(\.combo)
         }
         self.backend.onPressed = { [weak self] id in
             guard let self, let entry = self.entries.first(where: { $0.hotKeyID == id }) else { return }
