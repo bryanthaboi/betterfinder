@@ -286,6 +286,47 @@ final class IndexCoreTests: XCTestCase {
         XCTAssertEqual(reader.size(for: tree)?.state, .complete)
     }
 
+    func testRecheckingAFocusedFolderWaitsForNeverScannedOnesButRealChangesDoNot() throws {
+        let temp = try temporary()
+        defer { try? FileManager.default.removeItem(at: temp) }
+        let tree = temp.appendingPathComponent("tree")
+        let watched = tree.appendingPathComponent("watched")
+        for i in 0..<30 { try make(watched.appendingPathComponent("d\(i)"), files: ["f": 10]) }
+        let (writer, reader) = try open(temp)
+        try writer.scan(tree)
+        let arrival = tree.appendingPathComponent("arrival")
+        try make(arrival.appendingPathComponent("inner/leaf"), files: ["n": 500])
+        try writer.enqueue(path: tree.path, recursive: false)
+        XCTAssertTrue(try writer.processNext())
+        XCTAssertEqual(reader.size(for: arrival)?.isCounting, true)
+
+        try writer.enqueue(path: watched.path, recursive: true)
+        try writer.focus(on: [watched])
+        let changed = watched.appendingPathComponent("d3")
+        try Data(count: 1000).write(to: changed.appendingPathComponent("f"))
+        try writer.enqueue(path: changed.path, recursive: false)
+
+        XCTAssertTrue(try writer.processNext())
+        XCTAssertEqual(reader.size(for: changed)?.logicalBytes, 1000)
+        var steps = 0
+        while reader.size(for: arrival)?.state != .complete {
+            XCTAssertTrue(try writer.processNext())
+            steps += 1
+            XCTAssertLessThan(steps, 10)
+        }
+        XCTAssertEqual(steps, 3)
+        XCTAssertEqual(reader.size(for: arrival)?.logicalBytes, 500)
+        XCTAssertEqual(try writer.flagged(), ["\(watched.path)|1"])
+        XCTAssertEqual(reader.size(for: watched)?.logicalBytes, 1290)
+
+        XCTAssertTrue(try writer.processNext())
+        XCTAssertEqual(try writer.flagged().count, 30)
+        try writer.drain()
+        XCTAssertEqual(try writer.flagged(), [])
+        XCTAssertEqual(reader.size(for: tree)?.logicalBytes, 1790)
+        XCTAssertEqual(reader.size(for: tree)?.state, .complete)
+    }
+
     func testRecentlyListedFolderWaitsUnlessSomeoneIsLookingAtIt() throws {
         let temp = try temporary()
         defer { try? FileManager.default.removeItem(at: temp) }

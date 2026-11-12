@@ -510,7 +510,7 @@ public final class SizeIndexWriter {
         return count
     }
 
-    private enum Pass { case focused, unscanned, upkeep }
+    private enum Pass { case urgent, unscanned, focused, upkeep }
 
     private func collect(_ limit: Int) throws -> [IndexWork] {
         var out: [IndexWork] = []
@@ -521,7 +521,7 @@ public final class SizeIndexWriter {
             for id in focus {
                 guard let pending = try db.first("SELECT pending FROM dirs WHERE id=?", args: [.int(id)], { IndexDatabase.int($0, 0) }), pending > 0 else { continue }
                 kept.append(id)
-                if out.count < limit, try path(of: id) != nil { try gather(from: id, into: &out, seen: &seen, limit: limit, pass: .focused) }
+                if out.count < limit, try path(of: id) != nil { try gather(from: id, into: &out, seen: &seen, limit: limit, pass: .urgent) }
             }
             focus = kept
         }
@@ -531,22 +531,34 @@ public final class SizeIndexWriter {
             tops.append((IndexDatabase.int($0, 0), IndexDatabase.int($0, 1)))
         }
         for top in tops where top.fresh > 0 && out.count < limit { try gather(from: top.id, into: &out, seen: &seen, limit: limit, pass: .unscanned) }
+        for id in focus where out.count < limit {
+            if try path(of: id) != nil { try gather(from: id, into: &out, seen: &seen, limit: limit, pass: .focused) }
+        }
         let adopting = try db.first("SELECT 1 FROM dirs WHERE parent=0 AND flags&?!=0 LIMIT 1", args: [.int(IndexFlag.detached)]) { _ in true } ?? false
-        for top in tops where out.count < limit { try gather(from: top.id, into: &out, seen: &seen, limit: limit, pass: adopting ? .focused : .upkeep) }
+        if adopting {
+            for top in tops where out.count < limit { try gather(from: top.id, into: &out, seen: &seen, limit: limit, pass: .focused) }
+        }
+        for top in tops where out.count < limit { try gather(from: top.id, into: &out, seen: &seen, limit: limit, pass: .upkeep) }
         return out
     }
 
     private func gather(from root: Int64, into out: inout [IndexWork], seen: inout Set<Int64>, limit: Int, pass: Pass) throws {
         var stack = [root]
         let now = Date().timeIntervalSince1970
-        let children = pass == .unscanned ? "SELECT id FROM dirs WHERE parent=? AND pending>0 AND fresh>0 LIMIT ?" : "SELECT id FROM dirs WHERE parent=? AND pending>0 LIMIT ?"
+        let children: String
+        switch pass {
+        case .unscanned: children = "SELECT id FROM dirs WHERE parent=? AND pending>0 AND fresh>0 LIMIT ?"
+        case .urgent: children = "SELECT id FROM (SELECT id,flags,pending FROM dirs WHERE parent=? AND pending>0 LIMIT 4096) WHERE flags&\(IndexFlag.recursive)=0 OR pending>1 LIMIT ?"
+        case .focused, .upkeep: children = "SELECT id FROM dirs WHERE parent=? AND pending>0 LIMIT ?"
+        }
         while out.count < limit, let id = stack.popLast() {
             guard let (flags, inode, pending, fresh, listed, items) = try db.first("SELECT flags,inode,pending,fresh,listed_at,own_items FROM dirs WHERE id=?", args: [.int(id)], {
                 (IndexDatabase.int($0, 0), IndexDatabase.int($0, 1), IndexDatabase.int($0, 2), IndexDatabase.int($0, 3), IndexDatabase.real($0, 4), IndexDatabase.int($0, 5))
             }), pending > 0, pass != .unscanned || fresh > 0 else { continue }
             let own: Int64 = flags & IndexFlag.scan != 0 ? 1 : 0
             let unscanned = flags & IndexFlag.fresh != 0
-            if own == 1, flags & IndexFlag.deferred == 0, pass != .unscanned || unscanned, !seen.contains(id) {
+            let recheck = flags & IndexFlag.recursive != 0 && !unscanned
+            if own == 1, flags & IndexFlag.deferred == 0, pass != .unscanned || unscanned, pass != .urgent || !recheck, !seen.contains(id) {
                 let rest = unscanned || pass != .upkeep || rescanInterval <= 0 ? 0 : max(rescanInterval, Double(items) * rescanIntervalPerItem)
                 if rest > 0, now - listed < rest, now >= listed {
                     isCooling = true
