@@ -553,19 +553,25 @@ final class ModWatchdog: @unchecked Sendable {
         return key
     }
 
+    func start(of key: UInt64) -> UInt64? {
+        lock.lock(); defer { lock.unlock() }
+        return active[key]?.start
+    }
+
     func end(_ key: UInt64) {
         lock.lock(); active.removeValue(forKey: key); lock.unlock()
     }
 
-    private func tick() -> Bool {
-        let now = DispatchTime.now().uptimeNanoseconds
+    @discardableResult
+    func tick(at clock: UInt64? = nil) -> Bool {
         var hangs: [(Turn, Int)] = []
         var kill: Turn?
         lock.lock()
         guard running else { lock.unlock(); return false }
+        let now = clock ?? DispatchTime.now().uptimeNanoseconds
         for (key, a) in active {
             let budget = a.turn.isLoad ? loadBudgetNs : budgetNs
-            let elapsed = now &- a.start
+            let elapsed = now > a.start ? now - a.start : 0
             if elapsed > budget, !a.reported {
                 active[key]?.reported = true
                 hangs.append((a.turn, Int(elapsed / 1_000_000)))
