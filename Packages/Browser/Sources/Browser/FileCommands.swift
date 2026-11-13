@@ -69,12 +69,18 @@ enum FileCommands {
     }
 
     static func setTags(_ tags: [String], on url: URL) async throws {
+        defer { tagsChanged([url]) }
         try await TagOps.setTagsAsync(tags, for: url)
     }
 
     static func addTag(_ tag: String, to url: URL) async throws {
         guard !tags(of: url).contains(tag) else { return }
+        defer { tagsChanged([url]) }
         try await TagOps.addTagsAsync([tag], to: url)
+    }
+
+    static func tagsChanged(_ urls: [URL]) {
+        NotificationCenter.default.post(name: .browserTagsDidChange, object: nil, userInfo: ["urls": urls])
     }
 
     static func toggleTag(_ tag: String, on urls: [URL]) async throws {
@@ -87,6 +93,7 @@ enum FileCommands {
             do { try await TagOps.setTagsAsync(t, for: u) } catch { if firstError == nil { firstError = error } }
         }
         BrowserDefaults.noteTags([tag])
+        tagsChanged(urls)
         if let firstError { throw firstError }
     }
 }

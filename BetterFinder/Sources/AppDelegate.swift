@@ -64,7 +64,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
         #endif
         DispatchQueue.main.async { [self] in
             let openFirst = { [self] in
-                if !openedViaURLs && BrowserWindowManager.shared.isEmpty {
+                if !openedViaURLs && BrowserWindowManager.shared.isEmpty && !VisorController.shared.opensNewWindows {
                     BrowserWindowManager.shared.openWindow(at: .folder(NewWindowLocation.resolve()))
                 }
             }

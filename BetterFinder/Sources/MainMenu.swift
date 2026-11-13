@@ -156,6 +156,7 @@ enum MainMenu {
         window.addItem(.separator())
         window.addItem(item("Show Visor", #selector(AppDelegate.toggleVisor(_:)), ""))
         window.addItem(item("Keep Visor Open", #selector(AppDelegate.toggleVisorPin(_:)), "p", [.command, .control]))
+        window.addItem(item("Visor Terminal", #selector(BrowserWindowController.toggleTerminal(_:)), "`", [.control]))
         window.addItem(.separator())
         window.addItem(item("Bring All to Front", #selector(NSApplication.arrangeInFront(_:)), ""))
         add(window, title: "Window", to: main)

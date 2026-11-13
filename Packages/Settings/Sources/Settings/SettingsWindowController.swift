@@ -42,8 +42,11 @@ public final class SettingsWindowController: NSWindowController {
         var id: String
         var title: String
         var symbol: String
+        var size: CGSize
         var view: AnyView
     }
+
+    static let minimumPaneSize = CGSize(width: 820, height: 640)
 
     public static let shared = SettingsWindowController()
 
@@ -138,13 +141,17 @@ public final class SettingsWindowController: NSWindowController {
     }
 
     private func paneSpecs() -> [PaneSpec] {
-        var specs = Tab.allCases.map { PaneSpec(id: $0.paneID, title: $0.title, symbol: $0.symbol, view: AnyView(content(for: $0))) }
+        var extra: [(id: String, title: String)] = []
+        if modsModel != nil { extra.append((SettingsPaneID.mods, "Mods")) }
+        extra += dynamicPanes.map { ($0.descriptor.id, $0.descriptor.title) }
+        var specs = Tab.allCases.map { PaneSpec(id: $0.paneID, title: $0.title, symbol: $0.symbol, size: Self.minimumPaneSize, view: AnyView(content(for: $0, extraPanes: extra))) }
         if let modsModel {
             specs.append(PaneSpec(
                 id: SettingsPaneID.mods,
                 title: "Mods",
                 symbol: "puzzlepiece.extension",
-                view: AnyView(ModsPaneView(model: modsModel).frame(width: 820, height: 600))
+                size: CGSize(width: 820, height: 600),
+                view: AnyView(ModsPaneView(model: modsModel))
             ))
         }
         for pane in dynamicPanes {
@@ -153,10 +160,15 @@ public final class SettingsWindowController: NSWindowController {
                 id: d.id,
                 title: d.title,
                 symbol: d.symbolName,
-                view: AnyView(d.makeView().frame(width: d.width).frame(minHeight: d.minHeight))
+                size: CGSize(width: d.width, height: d.minHeight),
+                view: AnyView(d.makeView())
             ))
         }
         return specs
+    }
+
+    static func paneSize(fitting sizes: [CGSize]) -> CGSize {
+        sizes.reduce(minimumPaneSize) { CGSize(width: max($0.width, $1.width), height: max($0.height, $1.height)) }
     }
 
     private func rebuildTabs() {
@@ -164,8 +176,9 @@ public final class SettingsWindowController: NSWindowController {
         let fallbackIndex = max(0, tabController.selectedTabViewItemIndex)
         while let item = tabController.tabViewItems.first { tabController.removeTabViewItem(item) }
         let specs = paneSpecs()
+        let size = Self.paneSize(fitting: specs.map(\.size))
         for spec in specs {
-            let host = NSHostingController(rootView: spec.view)
+            let host = NSHostingController(rootView: spec.view.frame(width: size.width, height: size.height))
             host.sizingOptions = [.preferredContentSize]
             host.title = spec.title
             let item = NSTabViewItem(viewController: host)
@@ -183,13 +196,13 @@ public final class SettingsWindowController: NSWindowController {
     }
 
     @ViewBuilder
-    private func content(for tab: Tab) -> some View {
+    private func content(for tab: Tab, extraPanes: [(id: String, title: String)]) -> some View {
         switch tab {
-        case .general: GeneralPane().frame(width: 600).frame(minHeight: 480)
-        case .defaultFileManager: DefaultFileManagerPane().frame(width: 600, height: 560)
-        case .appearance: AppearancePane().frame(width: 820, height: 640)
-        case .permissions: PermissionsPane().frame(width: 600).frame(minHeight: 420)
-        case .advanced: AdvancedPane(sizeIndex: sizeIndexController).frame(width: 600).frame(minHeight: 340)
+        case .general: GeneralPane(openPane: { [weak self] in self?.show(paneID: $0) }, extraPanes: extraPanes)
+        case .defaultFileManager: DefaultFileManagerPane()
+        case .appearance: AppearancePane()
+        case .permissions: PermissionsPane()
+        case .advanced: AdvancedPane(sizeIndex: sizeIndexController)
         }
     }
 }

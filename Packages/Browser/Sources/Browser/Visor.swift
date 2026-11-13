@@ -7,11 +7,15 @@ public enum VisorSettings {
     public static let aboveDockKey = "visorAboveDock"
     public static let pinnedKey = "visorPinned"
     public static let heightKey = "visorHeight"
+    public static let terminalKey = "visorTerminalOpenInTerminal"
+    public static let opensWindowsKey = "visorOpensNewWindows"
 
     static var store: UserDefaults { BrowserDefaults.store }
     static var doubleTap: Bool { store.bool(forKey: doubleTapKey) }
     static var allSpaces: Bool { store.object(forKey: allSpacesKey) as? Bool ?? true }
     static var aboveDock: Bool { store.bool(forKey: aboveDockKey) }
+    static var terminal: Bool { store.bool(forKey: terminalKey) }
+    static var opensWindows: Bool { store.bool(forKey: opensWindowsKey) }
 
     static var pinned: Bool {
         get { store.bool(forKey: pinnedKey) }
@@ -144,6 +148,30 @@ public final class VisorController {
     }
 
     public func togglePinned() { isPinned.toggle() }
+
+    public var isEnabled: Bool { (hotKey ?? .visor).isEnabled }
+    public var routesOpenInTerminal: Bool { VisorSettings.terminal && isEnabled }
+    public var opensNewWindows: Bool { VisorSettings.opensWindows }
+
+    public func openTerminal(at directory: URL) {
+        show()
+        guard let c = frontController else { return }
+        c.showTerminal(at: directory)
+    }
+
+    @discardableResult
+    public func openWindow(at location: BrowserLocation, select: [URL] = []) -> BrowserWindowController {
+        if controllers.isEmpty {
+            let wc = manager.openVisor(at: location)
+            show()
+            if !select.isEmpty { wc.select(select) }
+            return wc
+        }
+        show()
+        let wc = manager.openTab(at: location, select: select, nextTo: frontController)
+        selected = wc
+        return wc
+    }
 
     var controllers: [BrowserWindowController] { manager.controllers.filter(\.isVisor) }
 

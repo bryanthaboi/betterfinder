@@ -44,6 +44,7 @@ public final class BrowserWindowManager {
 
     @discardableResult
     public func open(at location: BrowserLocation, select: [URL] = [], intent: BrowserOpenIntent = .request) -> BrowserWindowController {
+        if let visor, visor.opensNewWindows { return visor.openWindow(at: location, select: select) }
         let host = activeController
         switch Self.route(intent: intent, tabsPreferred: BrowserDefaults.openFoldersInTabs, hasWindow: host != nil) {
         case .newWindow:
@@ -84,6 +85,11 @@ public final class BrowserWindowManager {
 
     @discardableResult
     public func openWindow(at location: BrowserLocation = .folder(FileManager.default.homeDirectoryForCurrentUser), select: [URL] = []) -> BrowserWindowController {
+        if let visor, visor.opensNewWindows { return visor.openWindow(at: location, select: select) }
+        return openStandardWindow(at: location, select: select)
+    }
+
+    func openStandardWindow(at location: BrowserLocation, select: [URL] = []) -> BrowserWindowController {
         let wc = make(location)
         if let frontmost = NSApp.keyWindow, (frontmost.windowController as? BrowserWindowController)?.isVisor == false {
             wc.window?.setFrameTopLeftPoint(NSPoint(x: frontmost.frame.minX + 24, y: frontmost.frame.maxY - 24))

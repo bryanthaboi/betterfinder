@@ -52,6 +52,7 @@ extension Notification.Name {
     static let browserVolumeWillEject = Notification.Name("BrowserVolumeWillEject")
     static let browserRenameDidEnd = Notification.Name("BrowserRenameDidEnd")
     static let browserIconsDidInvalidate = Notification.Name("BrowserIconsDidInvalidate")
+    static let browserTagsDidChange = Notification.Name("BrowserTagsDidChange")
 }
 
 enum BrowserDefaults {

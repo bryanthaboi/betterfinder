@@ -509,3 +509,28 @@ final class BehaviorRegressionBehaviorTests: RegistryTestCase {
         XCTAssertEqual(seen.last, before)
     }
 }
+
+@MainActor
+final class TagTintRefreshTests: RegistryTestCase {
+    func testRowTintAppearsRightAfterTaggingWithoutLeavingFolder() throws {
+        let dir = try makeTree(files: ["tint.txt"])
+        BrowserDefaults.store.set(true, forKey: BrowserDefaults.Key.coloredLabels)
+        let wc = makeWindow(dir, registries: BrowserRegistries())
+        defer { wc.close() }
+        wc.setViewMode(.list)
+        let pane = wc.activePane
+        XCTAssertTrue(spin { pane.model.items.count == 2 })
+        let list = try XCTUnwrap(pane.content as? ListViewController)
+        let file = dir.appendingPathComponent("tint.txt")
+        pane.content.select([file], scroll: false)
+        XCTAssertTrue(spin { pane.selectedURLs.map(\.pathKey) == [file.pathKey] })
+        let row = list.outline.selectedRow
+        wc.window?.displayIfNeeded()
+        func tint() -> NSColor? { (list.outline.rowView(atRow: row, makeIfNecessary: false) as? ThemedRowView)?.labelColor }
+        XCTAssertNil(tint())
+        let item = NSMenuItem()
+        item.representedObject = "Red"
+        pane.toggleTag(item)
+        XCTAssertTrue(spin { tint() != nil }, "row tint never updated after tagging")
+    }
+}

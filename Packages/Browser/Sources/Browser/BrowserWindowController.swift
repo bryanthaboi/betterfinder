@@ -38,6 +38,9 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     weak var manager: BrowserWindowManager?
     var tabDropHighlight: TabDropHighlight?
     private(set) var visorPinButton: NSButton?
+    private(set) var visorTerminalButton: NSButton?
+    private(set) var terminalPanel: TerminalPanelController?
+    private var terminalItem: NSSplitViewItem?
 
     private enum ToolbarID {
         static let nav = NSToolbarItem.Identifier("nav")
@@ -47,9 +50,12 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         static let share = NSToolbarItem.Identifier("share")
         static let operations = NSToolbarItem.Identifier("operations")
         static let search = NSToolbarItem.Identifier("search")
+        static let windows = NSToolbarItem.Identifier("windows")
     }
 
     static let operationsItemAddedKey = "toolbarOperationsItemAdded"
+    static let windowsItemAddedKey = "toolbarWindowsItemAdded"
+    let windowsMenu = NSMenu()
     static var iCloudDriveURL: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs")
 
     public convenience init(location: BrowserLocation) {
@@ -102,6 +108,8 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         backMenu.delegate = self
         forwardMenu.delegate = self
         actionMenu.delegate = self
+        windowsMenu.delegate = self
+        window.closeButtonMenu = { [weak self] in self?.closeButtonMenu() }
         observeThemeChanges()
     }
 
@@ -126,8 +134,18 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         button.isBordered = false
         button.imagePosition = .imageOnly
         button.frame = NSRect(x: 0, y: 0, width: 30, height: 28)
+        let terminal = NSButton(image: NSImage(systemSymbolName: "apple.terminal", accessibilityDescription: "Terminal") ?? NSImage(), target: self, action: #selector(toggleTerminal(_:)))
+        terminal.isBordered = false
+        terminal.imagePosition = .imageOnly
+        terminal.toolTip = "Split the visor with a terminal"
+        terminal.setAccessibilityLabel("Toggle terminal")
+        terminal.frame = NSRect(x: 0, y: 0, width: 30, height: 28)
+        visorTerminalButton = terminal
+        let stack = NSStackView(views: [terminal, button])
+        stack.spacing = 0
+        stack.frame = NSRect(x: 0, y: 0, width: 60, height: 28)
         let accessory = NSTitlebarAccessoryViewController()
-        accessory.view = button
+        accessory.view = stack
         accessory.layoutAttribute = .trailing
         window.addTitlebarAccessoryViewController(accessory)
         visorPinButton = button
@@ -376,6 +394,17 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         window?.toolbar = toolbar
         window?.toolbarStyle = .unified
         ensureOperationsItem(in: toolbar)
+        ensureWindowsItem(in: toolbar)
+    }
+
+    func ensureWindowsItem(in toolbar: NSToolbar) {
+        let store = BrowserDefaults.store
+        guard !store.bool(forKey: Self.windowsItemAddedKey) else { return }
+        store.set(true, forKey: Self.windowsItemAddedKey)
+        let ids = toolbar.items.map(\.itemIdentifier)
+        guard !ids.contains(ToolbarID.windows) else { return }
+        let index = ids.firstIndex(of: ToolbarID.operations) ?? ids.firstIndex(of: ToolbarID.search) ?? ids.count
+        toolbar.insertItem(withItemIdentifier: ToolbarID.windows, at: index)
     }
 
     func ensureOperationsItem(in toolbar: NSToolbar) {
@@ -390,7 +419,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
 
     private static let baseToolbarIdentifiers: [String] = [
         NSToolbarItem.Identifier.toggleSidebar.rawValue, NSToolbarItem.Identifier.sidebarTrackingSeparator.rawValue,
-        "nav", "up", NSToolbarItem.Identifier.flexibleSpace.rawValue, "viewMode", "action", "share", "operations", "search",
+        "nav", "up", NSToolbarItem.Identifier.flexibleSpace.rawValue, "viewMode", "action", "share", "windows", "operations", "search",
     ]
 
     private func insertionIndex(for placement: ToolbarItemSpec.Placement, in ids: [String]) -> Int {
@@ -554,6 +583,14 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
             item.menu = actionMenu
             item.showsIndicator = true
             return item
+        case ToolbarID.windows:
+            let item = NSMenuToolbarItem(itemIdentifier: id)
+            item.image = NSImage(systemSymbolName: "macwindow.on.rectangle", accessibilityDescription: "Windows and Tabs")
+            item.label = "Windows"
+            item.toolTip = "Merge windows into tabs, split tabs out, move to the visor"
+            item.menu = windowsMenu
+            item.showsIndicator = true
+            return item
         case ToolbarID.operations:
             let indicator = OperationsIndicatorView(queue: .shared)
             indicator.setAccessibilityLabel("File operations")
@@ -664,6 +701,10 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     }
 
     public func menuNeedsUpdate(_ menu: NSMenu) {
+        if menu === windowsMenu {
+            buildWindowsMenu(into: menu)
+            return
+        }
         if menu === backMenu || menu === forwardMenu {
             menu.removeAllItems()
             let stack = menu === backMenu ? activePane.backStack : activePane.forwardStack
@@ -850,6 +891,68 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     @objc public func copyPath(_ sender: Any?) { activePane.copyPath(sender) }
     @objc public func toggleFoldersFirst(_ sender: Any?) { activePane.toggleFoldersFirst(sender) }
     @objc public func openInTerminal(_ sender: Any?) { activePane.openInTerminal(sender) }
+
+    var isTerminalShown: Bool { terminalItem.map { !$0.isCollapsed } ?? false }
+
+    @objc public func toggleTerminal(_ sender: Any?) {
+        guard isVisor else { NSSound.beep(); return }
+        if isTerminalShown {
+            if terminalPanel?.isFocused == true { hideTerminal() } else { terminalPanel?.focus() }
+        } else {
+            showTerminal(at: nil)
+        }
+    }
+
+    func showTerminal(at directory: URL?) {
+        let panel = terminalPanel ?? makeTerminalPanel()
+        if let item = terminalItem, item.isCollapsed {
+            item.isCollapsed = false
+        }
+        window?.contentView?.layoutSubtreeIfNeeded()
+        if let directory {
+            if panel.sessions.isEmpty { panel.newSession(directory: directory) } else { panel.open(directory: directory) }
+        } else if panel.sessions.isEmpty {
+            panel.newSession(directory: activePane.terminalTarget)
+        }
+        visorTerminalButton?.contentTintColor = .controlAccentColor
+        panel.focus()
+    }
+
+    func hideTerminal() {
+        guard let item = terminalItem, !item.isCollapsed else { return }
+        let hadFocus = terminalPanel?.isFocused == true
+        item.isCollapsed = true
+        visorTerminalButton?.contentTintColor = nil
+        if hadFocus { activePane.focusVisibleContent() }
+    }
+
+    private func makeTerminalPanel() -> TerminalPanelController {
+        let panel = TerminalPanelController()
+        panel.defaultDirectory = { [weak self] in self?.activePane.terminalTarget ?? FileManager.default.homeDirectoryForCurrentUser }
+        panel.onEmpty = { [weak self] in self?.removeTerminalPanel() }
+        let item = NSSplitViewItem(viewController: panel)
+        item.minimumThickness = 260
+        item.canCollapse = true
+        item.holdingPriority = NSLayoutConstraint.Priority(240)
+        let index = (splitController.splitViewItems.firstIndex { $0.viewController === contentHost } ?? splitController.splitViewItems.count - 1) + 1
+        splitController.insertSplitViewItem(item, at: index)
+        terminalPanel = panel
+        terminalItem = item
+        window?.contentView?.layoutSubtreeIfNeeded()
+        let width = splitController.splitView.bounds.width
+        if width > 0 { splitController.splitView.setPosition((width / 2).rounded(), ofDividerAt: index - 1) }
+        return panel
+    }
+
+    private func removeTerminalPanel() {
+        guard let item = terminalItem else { return }
+        let hadFocus = terminalPanel?.isFocused == true
+        splitController.removeSplitViewItem(item)
+        terminalItem = nil
+        terminalPanel = nil
+        visorTerminalButton?.contentTintColor = nil
+        if hadFocus || window?.firstResponder == nil || window?.firstResponder === window { activePane.focusVisibleContent() }
+    }
     @objc public func copyToOtherPane(_ sender: Any?) { activePane.copyToOtherPane(sender) }
     @objc public func moveToOtherPane(_ sender: Any?) { activePane.moveToOtherPane(sender) }
 
@@ -902,6 +1005,9 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         case #selector(newFolder(_:)): return activePane.canCreateFolder
         case #selector(newFile(_:)), #selector(newTextDocument(_:)), #selector(newMarkdownDocument(_:)), #selector(newEmptyFile(_:)): return activePane.canCreateFile
         case #selector(openInTerminal(_:)): return activePane.terminalTarget != nil
+        case #selector(toggleTerminal(_:)):
+            (item as? NSMenuItem)?.state = isTerminalShown ? .on : .off
+            return isVisor
         case #selector(switchPane(_:)): return isDualPane
         case #selector(copyToOtherPane(_:)), #selector(moveToOtherPane(_:)): return isDualPane && activePane.canSendToOtherPane(move: item.action == #selector(moveToOtherPane(_:)))
         case #selector(focusPathBar(_:)), #selector(goToFolder(_:)): return activePane.providedLocation == nil
@@ -938,6 +1044,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         (window as? BrowserWindow)?.onFirstResponderChange = nil
         (window as? BrowserWindow)?.onKeyBinding = nil
+        (window as? BrowserWindow)?.closeButtonMenu = nil
         registries.toolbar.removeObserver(self)
         registries.searchProviders.removeObserver(self)
         NotificationCenter.default.removeObserver(self, name: NSSplitView.didResizeSubviewsNotification, object: splitController.splitView)
@@ -948,6 +1055,7 @@ public final class BrowserWindowController: NSWindowController, NSWindowDelegate
         sidebarController.teardown()
         secondSidebar?.teardown()
         panelHost?.tearDown()
+        terminalPanel?.terminateAll()
         for p in panes { p.close() }
         onClose?()
         MemoryRelief.schedule()

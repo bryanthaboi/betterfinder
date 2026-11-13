@@ -120,6 +120,12 @@ public final class ThemedWindowChrome: NSObject {
         onApply?(theme)
     }
 
+    public var closeButtonView: NSView? {
+        if let custom = captionButtons.first(where: { $0.kind == .close }), !custom.isHidden { return custom }
+        guard let standard = window?.standardWindowButton(.closeButton), !standard.isHidden else { return nil }
+        return standard
+    }
+
     public func refresh() {
         backgroundView.needsDisplay = true
         captionButtons.forEach { $0.needsDisplay = true }
@@ -428,10 +434,38 @@ final class TitlebarBackgroundView: NSView {
         let insets = chrome.titleInsets(in: self)
         TitlebarRenderer.drawStrip(in: strip, theme: theme, title: window.title, active: active,
                                    leadingInset: insets.leading, trailingInset: insets.trailing, patternView: self)
-        if bounds.height > stripHeight + 1 {
-            TitlebarRenderer.drawToolbarArea(in: NSRect(x: 0, y: stripHeight, width: bounds.width, height: bounds.height - stripHeight),
+        func toolbarArea(height: CGFloat) {
+            guard height > stripHeight + 1 else { return }
+            TitlebarRenderer.drawToolbarArea(in: NSRect(x: 0, y: stripHeight, width: bounds.width, height: height - stripHeight),
                                              theme: theme, active: active, patternView: self)
         }
+        guard let cut = sidebarTabBarCut(stripHeight: stripHeight) else {
+            toolbarArea(height: bounds.height)
+            return
+        }
+        NSGraphicsContext.saveGraphicsState()
+        NSRect(x: cut.x, y: 0, width: bounds.width - cut.x, height: bounds.height).clip()
+        toolbarArea(height: bounds.height)
+        NSGraphicsContext.restoreGraphicsState()
+        NSGraphicsContext.saveGraphicsState()
+        NSRect(x: 0, y: 0, width: cut.x, height: cut.height).clip()
+        toolbarArea(height: cut.height)
+        NSGraphicsContext.restoreGraphicsState()
+    }
+
+    func sidebarTabBarCut(stripHeight: CGFloat) -> (x: CGFloat, height: CGFloat)? {
+        guard let root = window?.contentView?.superview, let bar = Self.tabBar(in: root), !bar.isHidden, bar.window != nil else { return nil }
+        let r = bar.convert(bar.bounds, to: self)
+        guard r.minX > 1, r.minX < bounds.width, r.minY > stripHeight, r.minY < bounds.maxY else { return nil }
+        return (r.minX, r.minY)
+    }
+
+    static func tabBar(in view: NSView) -> NSView? {
+        for sub in view.subviews {
+            if String(describing: type(of: sub)) == "NSTabBar" { return sub }
+            if let found = tabBar(in: sub) { return found }
+        }
+        return nil
     }
 }
 

@@ -31,17 +31,158 @@ struct GeneralPane: View {
     @AppStorage(SettingsKey.visorDoubleTapOption) private var visorDoubleTap = false
     @AppStorage(SettingsKey.visorAllSpaces) private var visorAllSpaces = true
     @AppStorage(SettingsKey.visorAboveDock) private var visorAboveDock = false
+    @AppStorage(SettingsKey.visorTerminal) private var visorTerminal = false
+    @AppStorage(SettingsKey.visorOpensWindows) private var visorOpensWindows = false
+    @AppStorage(SettingsKey.visorTerminalShell) private var visorShell = ""
+    @State private var detectedShells: [TerminalShellProfile] = []
     @State private var visorEnabled = GlobalHotKey.visor.isEnabled
     @State private var visorCombo = GlobalHotKey.visor.combo
     @State private var visorError: String?
     @ObservedObject private var themes = ThemeManager.shared
 
+    var openPane: (String) -> Void = { _ in }
+    var extraPanes: [(id: String, title: String)] = []
+    @State private var selection: GeneralSection = .windows
+    @State private var query = ""
+    @FocusState private var searchFocused: Bool
+
+    private var trimmedQuery: String { query.trimmingCharacters(in: .whitespaces) }
+
+    private var results: [SettingsSearchEntry] {
+        SettingsSearchIndex.entries(extraPanes: extraPanes).filter { $0.matches(trimmedQuery) }
+    }
+
+    private func sectionVisible(_ section: GeneralSection) -> Bool {
+        if trimmedQuery.isEmpty { return selection == section }
+        return SettingsSearchIndex.general.contains { $0.generalSection == section && $0.matches(trimmedQuery) }
+    }
+
     var body: some View {
+        HStack(spacing: 0) {
+            sidebar.frame(width: 210)
+            Divider()
+            ScrollViewReader { proxy in
+                detail
+                    .environment(\.settingsSearchQuery, trimmedQuery)
+                    .onChange(of: selection) { _, section in
+                        guard !trimmedQuery.isEmpty else { return }
+                        withAnimation { proxy.scrollTo(section, anchor: .top) }
+                    }
+            }
+        }
+        .background {
+            Button("") { searchFocused = true }
+                .keyboardShortcut("f", modifiers: .command)
+                .hidden()
+        }
+        .onAppear { syncLogin() }
+    }
+
+    private var sidebar: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: Spacing.xxs) {
+                Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+                TextField("Search settings", text: $query)
+                    .textFieldStyle(.plain)
+                    .focused($searchFocused)
+                    .accessibilityLabel("Search settings")
+                    .onSubmit(openFirstResult)
+                if !query.isEmpty {
+                    Button { query = "" } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search")
+                }
+            }
+            .padding(.horizontal, Spacing.xs)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 7).fill(Color(nsColor: .textBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 7).strokeBorder(Color(nsColor: .separatorColor)))
+            .padding(.horizontal, Spacing.s)
+            .padding(.top, Spacing.s)
+            .padding(.bottom, Spacing.xs)
+            if trimmedQuery.isEmpty {
+                List(selection: Binding(get: { selection }, set: { if let s = $0 { selection = s } })) {
+                    ForEach(GeneralSection.allCases) { section in
+                        Label(section.title, systemImage: section.symbol).tag(section)
+                    }
+                }
+                .listStyle(.sidebar)
+            } else {
+                searchResults
+            }
+        }
+    }
+
+    private var searchResults: some View {
+        let hits = results
+        let general = GeneralSection.allCases.filter { s in hits.contains { $0.generalSection == s } }
+        let others = hits.filter { $0.generalSection == nil }
+        return List {
+            if hits.isEmpty {
+                Text("No settings match").foregroundStyle(.secondary)
+            }
+            if !general.isEmpty {
+                Section("General") {
+                    ForEach(general) { section in
+                        Button { selection = section } label: {
+                            HStack {
+                                Label(section.title, systemImage: section.symbol)
+                                Spacer()
+                                Text("\(hits.filter { $0.generalSection == section }.count)")
+                                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            if !others.isEmpty {
+                Section("Other tabs") {
+                    ForEach(others) { entry in
+                        Button { openPane(entry.paneID) } label: {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(entry.title).lineLimit(2)
+                                Text(entry.paneTitle == entry.section ? entry.paneTitle : "\(entry.paneTitle) › \(entry.section)")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .listStyle(.sidebar)
+    }
+
+    private func openFirstResult() {
+        guard let first = results.first else { return }
+        if let section = first.generalSection { selection = section } else { openPane(first.paneID) }
+    }
+
+    @ViewBuilder
+    private var detail: some View {
+        if !trimmedQuery.isEmpty && !GeneralSection.allCases.contains(where: sectionVisible) {
+            VStack(spacing: Spacing.xs) {
+                Image(systemName: "magnifyingglass").font(.largeTitle).foregroundStyle(.tertiary)
+                Text(results.isEmpty ? "No settings match “\(trimmedQuery)”" : "Matches are in other tabs")
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            form
+        }
+    }
+
+    private var form: some View {
         Form {
-            Section("Windows") {
+            if sectionVisible(.windows) { Section("Windows") {
                 Picker("New window opens at", selection: $location) {
                     ForEach(NewWindowLocation.allCases) { Text($0.title).tag($0.rawValue) }
                 }
+                .settingsRow("newWindow")
                 if location == NewWindowLocation.custom.rawValue {
                     HStack {
                         Text(customPath.isEmpty ? "No folder chosen" : (customPath as NSString).abbreviatingWithTildeInPath)
@@ -51,28 +192,32 @@ struct GeneralPane: View {
                         Spacer()
                         Button("Choose…", action: chooseFolder)
                     }
+                    .settingsRow("newWindow")
                 }
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Toggle("Open folders in tabs in the active window", isOn: $openFoldersInTabs)
                     Text("Folders opened from other apps, the Dock or Open in New Window join the last active window as a tab. File > New Window always opens a window.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Toggle("Color sidebar icons", isOn: $colorSidebarIcons)
+                .settingsRow("openInTabs")
+                Toggle("Color sidebar icons", isOn: $colorSidebarIcons).settingsRow("sidebarIcons")
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Toggle("A sidebar for each pane in dual pane", isOn: $dualPaneSidebars)
                     Text("The right pane gets its own sidebar on the right edge.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Toggle("Open betterfinder at login", isOn: Binding(get: { loginEnabled }, set: setLogin))
+                .settingsRow("dualSidebars")
+                Toggle("Open betterfinder at login", isOn: Binding(get: { loginEnabled }, set: setLogin)).settingsRow("login")
                 if loginNeedsApproval {
                     HStack {
                         Text("Approve betterfinder in Login Items.").font(.caption).foregroundStyle(.orange)
                         Button("Open Login Items") { LoginItem.openSystemSettings() }
                     }
+                    .settingsRow("login")
                 }
-                if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
-            }
-            Section("Listing") {
+                if let loginError { Text(loginError).font(.caption).foregroundStyle(.red).settingsRow("login") }
+            }.id(GeneralSection.windows) }
+            if sectionVisible(.listing) { Section("Listing") {
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Picker("Density", selection: Binding(get: { themes.effectiveDensity }, set: { themes.density = $0 })) {
                         ForEach(Density.allCases, id: \.self) { d in
@@ -89,23 +234,26 @@ struct GeneralPane: View {
                         }
                     }
                 }
-                Toggle("Folders first", isOn: $foldersFirst)
-                Toggle("Show hidden files", isOn: $showHidden)
+                .settingsRow("density")
+                Toggle("Folders first", isOn: $foldersFirst).settingsRow("foldersFirst")
+                Toggle("Show hidden files", isOn: $showHidden).settingsRow("hiddenFiles")
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Toggle("Colored labels", isOn: $coloredLabels)
                     Text("Tints each row and icon label with the color of its last colored tag.")
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Toggle("Fit column widths to names in column view", isOn: $columnAutoWidth)
-                Toggle("Calculate folder sizes", isOn: $calcSizes)
-                Toggle("Also on network volumes", isOn: $calcSizesNetwork).disabled(!calcSizes).padding(.leading, Spacing.l)
+                .settingsRow("coloredLabels")
+                Toggle("Fit column widths to names in column view", isOn: $columnAutoWidth).settingsRow("columnFit")
+                Toggle("Calculate folder sizes", isOn: $calcSizes).settingsRow("folderSizes")
+                Toggle("Also on network volumes", isOn: $calcSizesNetwork).disabled(!calcSizes).padding(.leading, Spacing.l).settingsRow("networkSizes")
                 Picker("Size shown", selection: $allocated) {
                     Text("Size on disk (\(SizeFormatter.string(4096)) minimum per file)").tag(true)
                     Text("Logical size").tag(false)
                 }
                 .pickerStyle(.radioGroup)
-            }
-            Section("Terminal") {
+                .settingsRow("sizeShown")
+            }.id(GeneralSection.listing) }
+            if sectionVisible(.terminal) { Section("Terminal") {
                 HStack {
                     Text("Open in Terminal uses")
                     Spacer()
@@ -122,24 +270,29 @@ struct GeneralPane: View {
                     .fixedSize()
                     .accessibilityLabel("Change terminal app")
                 }
-            }
-            Section("Privacy") {
+                .settingsRow("terminal")
+            }.id(GeneralSection.terminal) }
+            if sectionVisible(.privacy) { Section("Privacy") {
                 Picker("Home folder name", selection: $homeNameStyle) {
                     ForEach(HomeNameStyle.allCases) { Text($0.title).tag($0.rawValue) }
                 }
+                .settingsRow("homeName")
                 if homeNameStyle == HomeNameStyle.custom.rawValue {
                     TextField("Shown instead", text: $homeNameCustom, prompt: Text("me"))
                         .accessibilityLabel("Custom home folder name")
+                        .settingsRow("homeName")
                 }
                 Text("Changes how your home folder is shown in the path bar, sidebar, titles and info windows. Files and paths you type are not affected.")
                     .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-            Section("Visor") {
+                    .settingsRow("homeName")
+            }.id(GeneralSection.privacy) }
+            if sectionVisible(.visor) { Section("Visor") {
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Toggle("Global hotkey slides the visor in", isOn: Binding(get: { visorEnabled }, set: setVisor))
                     Text(SettingsCopy.visorHelp)
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
+                .settingsRow("visor")
                 if visorEnabled {
                     HStack {
                         Text("Shortcut")
@@ -147,21 +300,51 @@ struct GeneralPane: View {
                         HotKeyRecorder(combo: $visorCombo, onChange: changeVisorCombo, onReject: { visorError = $0 }).frame(width: 160)
                             .accessibilityLabel("Visor shortcut")
                     }
+                    .settingsRow("visorShortcut")
                     Button("Reset to \(HotKeyCombo.visorDefault.displayString)") { changeVisorCombo(.visorDefault) }
                         .buttonStyle(.link)
-                    Toggle("Double-tap ⌥ also toggles it", isOn: $visorDoubleTap)
+                        .settingsRow("visorShortcut")
+                    Toggle("Double-tap ⌥ also toggles it", isOn: $visorDoubleTap).settingsRow("visorDoubleTap")
                 }
                 if let visorError { Text(visorError).font(.caption).foregroundStyle(.red) }
-                Toggle("Show on all Spaces", isOn: $visorAllSpaces)
-                Toggle("Show above the Dock", isOn: $visorAboveDock)
-            }
-            Section("Keyboard") {
+                Toggle("Show on all Spaces", isOn: $visorAllSpaces).settingsRow("visorSpaces")
+                Toggle("Show above the Dock", isOn: $visorAboveDock).settingsRow("visorDock")
+                VStack(alignment: .leading, spacing: Spacing.relatedText) {
+                    Toggle("Open in Terminal opens a terminal on the right half of the visor", isOn: Binding(get: { visorTerminal && visorEnabled }, set: { visorTerminal = $0 }))
+                        .disabled(!visorEnabled)
+                    Text(visorEnabled ? "Uses the visor's built-in terminal instead of \(TerminalChoice.displayName(path: terminalPath)). ⌃` or the terminal button splits the visor any time." : "Turn on the visor hotkey first.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .settingsRow("visorTerminal")
+                Picker("Visor terminal shell", selection: $visorShell) {
+                    Text("Login shell (\((TerminalShells.loginShellPath() as NSString).lastPathComponent))").tag("")
+                    ForEach(detectedShells) { Text($0.name).tag($0.path) }
+                    if !visorShell.isEmpty, !detectedShells.contains(where: { $0.path == visorShell }) {
+                        Text(TerminalShells.displayName(path: visorShell)).tag(visorShell)
+                    }
+                    Divider()
+                    Text("Other…").tag(Self.otherShellTag)
+                }
+                .onChange(of: visorShell) { old, new in
+                    if new == Self.otherShellTag { visorShell = chooseShell() ?? old }
+                }
+                .onAppear { if detectedShells.isEmpty { detectedShells = TerminalShells.detect() } }
+                .settingsRow("visorShell")
+                VStack(alignment: .leading, spacing: Spacing.relatedText) {
+                    Toggle("Open all new windows in the visor", isOn: $visorOpensWindows)
+                    Text("New windows, the Dock and folders opened from other apps become visor tabs instead of separate windows.")
+                        .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                }
+                .settingsRow("visorWindows")
+            }.id(GeneralSection.visor) }
+            if sectionVisible(.keyboard) { Section("Keyboard") {
                 VStack(alignment: .leading, spacing: Spacing.relatedText) {
                     Toggle("Windows keys", isOn: $returnOpens)
                     Text(SettingsCopy.windowsKeysHelp)
                         .font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                 }
-                Toggle("Global hotkey opens a new window", isOn: Binding(get: { hotKeyEnabled }, set: setHotKey))
+                .settingsRow("windowsKeys")
+                Toggle("Global hotkey opens a new window", isOn: Binding(get: { hotKeyEnabled }, set: setHotKey)).settingsRow("hotkey")
                 if hotKeyEnabled {
                     HStack {
                         Text("Shortcut")
@@ -169,15 +352,18 @@ struct GeneralPane: View {
                         HotKeyRecorder(combo: $combo, onChange: changeCombo, onReject: { hotKeyError = $0 }).frame(width: 160)
                             .accessibilityLabel("Global hotkey shortcut")
                     }
+                    .settingsRow("hotkey")
                     Button("Reset to \(HotKeyCombo.default.displayString)") { changeCombo(.default) }
                         .buttonStyle(.link)
+                        .settingsRow("hotkey")
                 }
                 if let hotKeyError { Text(hotKeyError).font(.caption).foregroundStyle(.red) }
+            }.id(GeneralSection.keyboard) }
+            if sectionVisible(.updates) {
+                Updates.SettingsSectionView().id(GeneralSection.updates)
             }
-            Updates.SettingsSectionView()
         }
         .formStyle(.grouped)
-        .onAppear { syncLogin() }
     }
 
     private func syncLogin() {
@@ -233,6 +419,19 @@ struct GeneralPane: View {
             hotKeyError = error.localizedDescription
             combo = GlobalHotKey.shared.combo
         }
+    }
+
+    private static let otherShellTag = "\u{0}other"
+
+    private func chooseShell() -> String? {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = URL(fileURLWithPath: "/opt/homebrew/bin")
+        panel.prompt = "Use Shell"
+        guard panel.runModal() == .OK, let url = panel.url, FileManager.default.isExecutableFile(atPath: url.path) else { return nil }
+        return url.path
     }
 
     private func chooseTerminal() {

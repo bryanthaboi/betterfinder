@@ -155,6 +155,7 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
         nc.addObserver(self, selector: #selector(volumeWillEject(_:)), name: .browserVolumeWillEject, object: nil)
         nc.addObserver(self, selector: #selector(renameEnded), name: .browserRenameDidEnd, object: nil)
         nc.addObserver(self, selector: #selector(iconsInvalidated), name: .browserIconsDidInvalidate, object: nil)
+        nc.addObserver(self, selector: #selector(tagsDidChange), name: .browserTagsDidChange, object: nil)
         registries.browserViews.addObserver(self) { [weak self] in self?.refreshAux() }
         registries.locations.addObserver(self) { [weak self] in self?.refreshAux() }
         registries.searchProviders.addObserver(self) { [weak self] in self?.refreshAux() }
@@ -568,6 +569,10 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     @objc private func iconsInvalidated() {
         content.refreshDisplay()
         pathBar.update(location: location)
+    }
+
+    @objc private func tagsDidChange() {
+        content.refreshDisplay()
     }
 
     @objc private func renameEnded() {
@@ -1153,7 +1158,12 @@ final class BrowserPaneController: NSViewController, NSMenuItemValidation, Theme
     }
 
     @objc func openInTerminal(_ sender: Any?) {
-        if let target = terminalTarget { FileCommands.openInTerminal(target) }
+        guard let target = terminalTarget else { return }
+        if let visor = windowController?.manager?.visor, visor.routesOpenInTerminal {
+            visor.openTerminal(at: target)
+        } else {
+            FileCommands.openInTerminal(target)
+        }
     }
 
     @objc func miniInfo(_ sender: Any?) {

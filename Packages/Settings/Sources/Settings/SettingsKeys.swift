@@ -26,6 +26,9 @@ public enum SettingsKey {
     public static let visorDoubleTapOption = "visorDoubleTapOption"
     public static let visorAllSpaces = "visorAllSpaces"
     public static let visorAboveDock = "visorAboveDock"
+    public static let visorTerminal = "visorTerminalOpenInTerminal"
+    public static let visorOpensWindows = "visorOpensNewWindows"
+    public static let visorTerminalShell = "visorTerminalShell"
 }
 
 public enum NewWindowLocation: String, CaseIterable, Identifiable, Sendable {
@@ -131,6 +134,8 @@ public enum SettingsDefaults {
         SettingsKey.visorDoubleTapOption: false,
         SettingsKey.visorAllSpaces: true,
         SettingsKey.visorAboveDock: false,
+        SettingsKey.visorTerminal: false,
+        SettingsKey.visorOpensWindows: false,
     ]
 
     public static func register(in defaults: UserDefaults = .standard) {

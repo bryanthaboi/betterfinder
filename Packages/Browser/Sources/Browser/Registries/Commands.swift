@@ -227,6 +227,7 @@ enum BuiltInCommands {
         func visor(_ c: BrowserContext) -> VisorController { c.controller?.manager?.visor ?? .shared }
         let visorSpecs = [
             CommandSpec(id: "window.toggleVisor", title: "Toggle Visor", subtitle: "A window that slides up from the bottom of the screen", category: "Window", symbolName: "rectangle.bottomthird.inset.filled", handler: { visor($0).toggle() }),
+            CommandSpec(id: "window.toggleTerminal", title: "Toggle Visor Terminal", subtitle: "Splits the visor with a terminal on the right", category: "Window", symbolName: "apple.terminal", isEnabled: { $0.controller?.isVisor == true }, handler: send(#selector(BrowserWindowController.toggleTerminal(_:)))),
             CommandSpec(id: "window.pinVisor", title: "Keep Visor Open", subtitle: "Stops the visor hiding when you switch apps", category: "Window", symbolName: "pin", handler: { visor($0).togglePinned() }),
         ]
         let pathSpecs = PathFormat.allCases.filter { $0 != .posix }.map { format in

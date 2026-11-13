@@ -1,4 +1,5 @@
 import AppKit
+import Theming
 
 @MainActor
 final class BrowserWindow: NSWindow {
@@ -6,13 +7,28 @@ final class BrowserWindow: NSWindow {
     var onKeyBinding: ((NSEvent) -> Bool)?
     var onTabDoubleClick: ((NSPoint) -> Bool)?
     var allowsOffscreenFrame = false
+    var closeButtonMenu: (() -> NSMenu?)?
 
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect {
         allowsOffscreenFrame ? frameRect : super.constrainFrameRect(frameRect, to: screen)
     }
 
+    var closeButtonView: NSView? {
+        ThemedWindowChrome.chrome(for: self)?.closeButtonView ?? standardWindowButton(.closeButton).flatMap { $0.isHidden ? nil : $0 }
+    }
+
+    func isOnCloseButton(_ point: NSPoint) -> Bool {
+        guard let button = closeButtonView, button.window === self else { return false }
+        return button.convert(button.bounds, to: nil).contains(point)
+    }
+
     override func sendEvent(_ event: NSEvent) {
         if event.type == .leftMouseDown, event.clickCount == 2, onTabDoubleClick?(event.locationInWindow) == true { return }
+        let secondary = event.type == .rightMouseDown || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+        if secondary, isOnCloseButton(event.locationInWindow), let menu = closeButtonMenu?(), let view = closeButtonView {
+            NSMenu.popUpContextMenu(menu, with: event, for: view)
+            return
+        }
         super.sendEvent(event)
     }
 
