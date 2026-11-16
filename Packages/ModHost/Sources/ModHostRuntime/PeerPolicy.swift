@@ -1,6 +1,7 @@
 import Foundation
 import ModHostProtocol
 import Security
+import XPC
 
 public struct ModSigningInfo: Equatable, Sendable {
     public var identifier: String?
@@ -115,6 +116,7 @@ public final class ModHostXPCServiceDelegate: NSObject, NSXPCListenerDelegate, @
         newConnection.interruptionHandler = { exit(0) }
         connection = newConnection
         self.engine = engine
+        xpc_transaction_begin()
         newConnection.resume()
         engine.start()
         return true

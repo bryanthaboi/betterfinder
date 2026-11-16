@@ -569,6 +569,10 @@ final class StatusBarView: NSView, ThemedSurface {
         }
     }
 
+    static let centering = NSLayoutConstraint.Priority(230)
+    static let centerResistance = NSLayoutConstraint.Priority(240)
+    static let sideMaxWidth: CGFloat = 240
+
     private var slots: [String: Slot] = [:]
     private var lastContext: StatusBarContext?
     private var registries: BrowserRegistries
@@ -622,7 +626,7 @@ final class StatusBarView: NSView, ThemedSurface {
         rightCluster.addArrangedSubview(largeIcon)
         rightCluster.setCustomSpacing(Spacing.s, after: trailingStack)
         for v in [surface, separator, leadingStack, centerStack, rightCluster] as [NSView] { addSubview(v) }
-        let centerX = centerStack.centerXAnchor.constraint(equalTo: centerXAnchor).withPriority(.defaultHigh)
+        let centerX = centerStack.centerXAnchor.constraint(equalTo: centerXAnchor).withPriority(Self.centering)
         NSLayoutConstraint.activate([
             surface.topAnchor.constraint(equalTo: topAnchor),
             surface.bottomAnchor.constraint(equalTo: bottomAnchor),
@@ -718,6 +722,11 @@ final class StatusBarView: NSView, ThemedSurface {
         let driver: StatusBarSegmentDriver = spec.makeDriver?() ?? TextSegmentDriver(text: spec.text ?? { _ in nil })
         let view = StatusSegmentView(accessibilityLabel: spec.accessibilityLabel, help: spec.accessibilityHelp)
         view.shouldAnnounce = { [weak self] in self?.isActivePane ?? false }
+        if spec.alignment == .center {
+            view.label.setContentCompressionResistancePriority(Self.centerResistance, for: .horizontal)
+        } else {
+            view.widthAnchor.constraint(lessThanOrEqualToConstant: Self.sideMaxWidth).isActive = true
+        }
         let slot = Slot(qualifiedID: e.qualifiedID, owner: e.owner, spec: spec, driver: driver, view: view)
         slot.registrySequence = e.sequence
         slot.output.onChange = { [weak slot] in if let slot { slot.view.apply(slot.output) } }

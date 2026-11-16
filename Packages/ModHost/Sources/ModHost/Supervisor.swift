@@ -44,11 +44,13 @@ final class ModHostSupervisor: @unchecked Sendable {
     let factory: ModHostTransportFactory
     let config: ModHostConfig
     let deadlineGraceMs: Int
+    let loadGraceMs: Int
     private let lock = NSLock()
     private var transport: ModHostTransport?
     private var transportID = UUID()
     private var loads: [String: ModLoadRequest] = [:]
     private var loadWaiters: [String: [CheckedContinuation<ModCallError?, Never>]] = [:]
+    private var loadTimers: [String: UUID] = [:]
     private var pending: [String: Pending] = [:]
     private var mods: [String: ActiveMod] = [:]
     private var ready = false
@@ -65,10 +67,11 @@ final class ModHostSupervisor: @unchecked Sendable {
     var onRestarted: (@Sendable () -> Void)?
     private let callQueue = DispatchQueue(label: "betterfinder.modhost.calls", attributes: .concurrent)
 
-    init(factory: ModHostTransportFactory, config: ModHostConfig, deadlineGraceMs: Int = 1500, callHandler: ModCallHandling) {
+    init(factory: ModHostTransportFactory, config: ModHostConfig, deadlineGraceMs: Int = 1500, loadGraceMs: Int = 5000, callHandler: ModCallHandling) {
         self.factory = factory
         self.config = config
         self.deadlineGraceMs = deadlineGraceMs
+        self.loadGraceMs = loadGraceMs
         self.callHandler = callHandler
     }
 
@@ -122,6 +125,7 @@ final class ModHostSupervisor: @unchecked Sendable {
         pending.removeAll()
         let lw = loadWaiters
         loadWaiters.removeAll()
+        loadTimers.removeAll()
         lock.unlock()
         t?.terminate()
         for (_, p) in all { p.timer?.cancel(); p.continuation.resume(returning: .failure(ModCallError("hostStopped", "mod host stopped"))) }
@@ -139,19 +143,23 @@ final class ModHostSupervisor: @unchecked Sendable {
         let key = "\(request.modId)#\(request.generation)"
         return await withCheckedContinuation { (c: CheckedContinuation<ModCallError?, Never>) in
             lock.lock()
+            let timer = UUID()
             loads[key] = request
             mods[key] = mod
             loadWaiters[key, default: []].append(c)
+            loadTimers[key] = timer
             lock.unlock()
             send(.load(request))
-            DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(config.loadBudgetMs + 5000)) { [weak self] in
-                self?.resolveLoad(key, ModCallError("loadTimeout", "mod did not load in time"))
+            DispatchQueue.global().asyncAfter(deadline: .now() + .milliseconds(config.loadBudgetMs + loadGraceMs)) { [weak self] in
+                self?.resolveLoad(key, ModCallError("loadTimeout", "mod did not load in time"), timer: timer)
             }
         }
     }
 
-    private func resolveLoad(_ key: String, _ error: ModCallError?) {
+    private func resolveLoad(_ key: String, _ error: ModCallError?, timer: UUID? = nil) {
         lock.lock()
+        if let timer, loadTimers[key] != timer { lock.unlock(); return }
+        loadTimers.removeValue(forKey: key)
         let ws = loadWaiters.removeValue(forKey: key) ?? []
         if error != nil { loads.removeValue(forKey: key); mods.removeValue(forKey: key) }
         lock.unlock()
@@ -163,6 +171,7 @@ final class ModHostSupervisor: @unchecked Sendable {
         lock.lock()
         loads.removeValue(forKey: key)
         mods.removeValue(forKey: key)
+        loadTimers.removeValue(forKey: key)
         let mine = pending.filter { $0.value.invocation.mod === mod }
         for k in mine.keys { pending.removeValue(forKey: k) }
         lock.unlock()
@@ -326,6 +335,11 @@ final class ModHostSupervisor: @unchecked Sendable {
         pending.removeAll()
         let lw = loadWaiters
         loadWaiters.removeAll()
+        for (key, ws) in lw where !ws.isEmpty {
+            loads.removeValue(forKey: key)
+            mods.removeValue(forKey: key)
+            loadTimers.removeValue(forKey: key)
+        }
         lock.unlock()
         old?.terminate()
         for (_, p) in failed {

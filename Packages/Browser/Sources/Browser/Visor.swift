@@ -102,6 +102,7 @@ public final class VisorController {
     private var raised: [(window: NSWindow, level: NSWindow.Level)] = []
     private var observers: [NSObjectProtocol] = []
     private var screen: Screen?
+    private var behindVisor: Set<ObjectIdentifier> = []
 
     public init(manager: BrowserWindowManager? = nil, hotKey: GlobalHotKey? = nil) {
         self.manager = manager ?? .shared
@@ -123,6 +124,9 @@ public final class VisorController {
         })
         observers.append(center.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.reposition() }
+        })
+        observers.append(center.addObserver(forName: NSApplication.didUpdateNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.raiseAppearedWindows() }
         })
         observers.append(center.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { [weak self] note in
             let window = note.object as? NSWindow
@@ -247,6 +251,7 @@ public final class VisorController {
     }
 
     public func show() {
+        let wasShown = isShown
         guard let screen = screenProvider() else { return }
         self.screen = screen
         if let front = frontmostApplication(), front != .current {
@@ -275,6 +280,8 @@ public final class VisorController {
         isShown = true
         order = list
         selected = chosen
+        if !wasShown { behindVisor = Set(NSApp.windows.filter(\.isVisible).map(ObjectIdentifier.init)) }
+        raiseAppearedWindows()
         activate()
         window.makeKeyAndOrderFront(nil)
         chosen.activePane.focusVisibleContent()
@@ -364,16 +371,31 @@ public final class VisorController {
             if isShown { selected = c }
             return
         }
+        raiseAboveVisor(window)
+    }
+
+    func raiseAppearedWindows() {
+        guard isShown, VisorSettings.aboveDock else { return }
+        for window in NSApp.windows where window.isVisible && !(window.windowController is BrowserWindowController) {
+            let floats = window.level.rawValue >= NSWindow.Level.floating.rawValue
+            guard floats || !behindVisor.contains(ObjectIdentifier(window)) else { continue }
+            raiseAboveVisor(window)
+        }
+    }
+
+    private func raiseAboveVisor(_ window: NSWindow) {
         guard isShown, VisorSettings.aboveDock else { return }
         let level = VisorLayout.level(aboveDock: true)
         guard window.level.rawValue <= level.rawValue, !raised.contains(where: { $0.window === window }) else { return }
         raised.append((window, window.level))
-        window.level = NSWindow.Level(rawValue: level.rawValue + 1)
+        let floats = window.level.rawValue >= NSWindow.Level.floating.rawValue
+        window.level = NSWindow.Level(rawValue: level.rawValue + (floats ? 2 : 1))
     }
 
     private func restoreRaised() {
         for entry in raised { entry.window.level = entry.level }
         raised.removeAll()
+        behindVisor.removeAll()
     }
 
     var raisedWindows: [NSWindow] { raised.map(\.window) }

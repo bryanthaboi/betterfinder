@@ -234,6 +234,74 @@ final class RegressionChromeTests: XCTestCase {
         XCTAssertEqual(aligned(view.label).minX, 0, accuracy: 0.5)
     }
 
+    func testSideStatusSegmentsKeepTheirWidthBesideLongCenterText() throws {
+        ThemeManager.shared.select("modern")
+        let regs = BrowserRegistries()
+        regs.statusBar.removeAll(owner: BrowserOwner.builtIn)
+        let summary = "1,284 items (37 hidden) · showing Images, 912 filtered out (esc to clear) · 412.53 GB available"
+        regs.statusBar.register(StatusBarSegmentSpec(id: "size", alignment: .center, accessibilityLabel: "Status", text: { _ in summary }), owner: BrowserOwner.builtIn)
+        regs.statusBar.register(StatusBarSegmentSpec(id: "branch", alignment: .trailing, accessibilityLabel: "Git Branch", text: { _ in "⎇ main" }), owner: "git")
+        regs.statusBar.register(StatusBarSegmentSpec(id: "temp", alignment: .trailing, accessibilityLabel: "Weather", text: { _ in "☀ 72°F" }), owner: "weather")
+        regs.statusBar.register(StatusBarSegmentSpec(id: "mode", alignment: .leading, accessibilityLabel: "Mode", text: { _ in "read only" }), owner: "mode")
+        let bar = StatusBarView(registries: regs)
+        bar.applyTheme(ThemeManager.shared.current)
+        bar.translatesAutoresizingMaskIntoConstraints = true
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 24), styleMask: [.titled], backing: .buffered, defer: true)
+        window.contentView?.addSubview(bar)
+        bar.update(context: StatusBarContext(location: .computer))
+        for width in [900, 640, 480, 360] as [CGFloat] {
+            bar.frame = NSRect(x: 0, y: 0, width: width, height: 24)
+            bar.layoutSubtreeIfNeeded()
+            var frames: [NSRect] = []
+            for id in ["mode/mode", "git/branch", "weather/temp"] {
+                let view = try XCTUnwrap(bar.segmentView(id))
+                let needed = view.label.intrinsicContentSize.width
+                XCTAssertGreaterThan(needed, 10)
+                XCTAssertGreaterThanOrEqual(view.label.frame.width, needed - 0.5, "\(id) is squeezed at width \(width)")
+                frames.append(view.convert(view.bounds, to: bar))
+            }
+            let center = try XCTUnwrap(bar.segmentView("betterfinder/size"))
+            frames.append(center.convert(center.bounds, to: bar))
+            for f in frames { XCTAssertTrue(bar.bounds.insetBy(dx: -0.5, dy: -0.5).contains(f), "\(f) leaves the bar at width \(width)") }
+            let ordered = frames.sorted { $0.minX < $1.minX }
+            for (a, b) in zip(ordered, ordered.dropFirst()) { XCTAssertLessThanOrEqual(a.maxX, b.minX + 0.5, "segments overlap at width \(width)") }
+        }
+    }
+
+    func testCenterStatusTextCentersWhenItFitsAndSlidesBeforeTruncating() throws {
+        ThemeManager.shared.select("modern")
+        let regs = BrowserRegistries()
+        regs.statusBar.removeAll(owner: BrowserOwner.builtIn)
+        regs.statusBar.register(StatusBarSegmentSpec(id: "size", alignment: .center, accessibilityLabel: "Status", text: { _ in "28 items · 412.53 GB available" }), owner: BrowserOwner.builtIn)
+        regs.statusBar.register(StatusBarSegmentSpec(id: "branch", alignment: .trailing, accessibilityLabel: "Git Branch", text: { _ in "⎇ main" }), owner: "git")
+        regs.statusBar.register(StatusBarSegmentSpec(id: "temp", alignment: .trailing, accessibilityLabel: "Weather", text: { _ in "☀ 72°F" }), owner: "weather")
+        let bar = StatusBarView(registries: regs)
+        bar.applyTheme(ThemeManager.shared.current)
+        bar.translatesAutoresizingMaskIntoConstraints = true
+        bar.showsIconSlider = false
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 900, height: 24), styleMask: [.titled], backing: .buffered, defer: true)
+        window.contentView?.addSubview(bar)
+        bar.update(context: StatusBarContext(location: .computer))
+        let center = try XCTUnwrap(bar.segmentView("betterfinder/size"))
+        let needed = center.label.intrinsicContentSize.width
+        func centerFrame(_ width: CGFloat) -> NSRect {
+            bar.frame = NSRect(x: 0, y: 0, width: width, height: 24)
+            bar.layoutSubtreeIfNeeded()
+            return center.convert(center.bounds, to: bar)
+        }
+        XCTAssertEqual(centerFrame(900).midX, 450, accuracy: 1)
+        XCTAssertEqual(centerFrame(520).midX, 260, accuracy: 1)
+        let slid = centerFrame(380)
+        XCTAssertLessThan(slid.midX, 189)
+        XCTAssertGreaterThanOrEqual(center.label.frame.width, needed - 0.5)
+        _ = centerFrame(200)
+        XCTAssertLessThan(center.label.frame.width, needed)
+        for id in ["git/branch", "weather/temp"] {
+            let view = try XCTUnwrap(bar.segmentView(id))
+            XCTAssertGreaterThanOrEqual(view.label.frame.width, view.label.intrinsicContentSize.width - 0.5, id)
+        }
+    }
+
     func testStatusLabelsUseStatusBarFont() throws {
         ThemeManager.shared.select("platinum")
         let bar = StatusBarView(registries: BrowserRegistries())

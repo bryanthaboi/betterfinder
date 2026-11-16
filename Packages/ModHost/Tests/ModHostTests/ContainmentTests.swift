@@ -90,6 +90,35 @@ final class ContainmentTests: XCTestCase {
         await second.shutdown()
     }
 
+    func testHostKilledAfterLoadWindowReloadsMods() async throws {
+        let env = try TestEnv(transport: ModHostTransports.subprocess(Runner.url)) { $0.loadGraceMs = 100; $0.safeModeFailures = 10 }
+        defer { Task { await env.cleanup() } }
+        let manifest = commandManifest(
+            "ok", handler: "ok", permissions: [["kind": "ui", "surfaces": ["statusBar"]]],
+            extraHooks: [["name": "activate", "handler": "activate", "version": 1]], contributes: ["statusBar": [["id": "s", "title": "S"]]]
+        )
+        let script = """
+        import { ui } from "betterfinder";
+        export async function activate(context: unknown, input: unknown) { await ui.setStatusText("s", "up " + (input as { reason?: string }).reason); }
+        export async function ok(context: unknown, input: unknown): Promise<{ message?: string }> { return { message: "ok" }; }
+        """
+        try await env.install(try env.mod("bob.idle", manifest: manifest, files: ["scripts/main.ts": script]))
+        try await env.runtime.enable(id: "bob.idle")
+        func statusTexts() -> [String] {
+            env.sink.updates.compactMap { if case .statusText(_, let text) = $0 { return text }; return nil }
+        }
+        XCTAssertEqual(statusTexts(), ["up enable"])
+        let pid1 = try XCTUnwrap(env.runtime.hostProcessIdentifier)
+        try await Task.sleep(nanoseconds: UInt64(env.runtime.options.hostConfig.loadBudgetMs + 400) * 1_000_000)
+        kill(pid1, SIGKILL)
+        let restarted = await eventually { env.runtime.hostProcessIdentifier.map { $0 != pid1 } ?? false }
+        XCTAssertTrue(restarted)
+        let reactivated = await eventually { statusTexts() == ["up enable", "up reload"] }
+        XCTAssertTrue(reactivated, "\(statusTexts())")
+        let again = try await env.runtime.runCommand(qualifiedID: "bob.idle/ok", selection: [])
+        XCTAssertEqual(again.message, "ok")
+    }
+
     func testMemoryThresholdRestartsIdleHost() async throws {
         let env = try TestEnv(transport: ModHostTransports.subprocess(Runner.url)) { $0.hostConfig = ModHostConfig(memoryLimitMiB: 1, statsIntervalMs: 250) }
         defer { Task { await env.cleanup() } }

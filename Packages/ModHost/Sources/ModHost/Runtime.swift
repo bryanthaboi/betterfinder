@@ -22,6 +22,7 @@ public struct ModRuntimeOptions: Sendable {
     public var checkHostIdleTimeout: TimeInterval = 30
     public var checkHostStartTimeout: TimeInterval = 15
     public var checkHostRetryDelay: TimeInterval = 11
+    public var loadGraceMs = 5000
 
     public init(
         paths: ModHostPaths = .standard, hostConfig: ModHostConfig = ModHostConfig(), transport: ModHostTransportFactory = ModHostTransports.xpc(),
@@ -174,7 +175,7 @@ public final class ModHostController: ModBrokerRuntime, @unchecked Sendable {
             fileSearch: dependencies.fileSearch, credentials: dependencies.credentials,
             net: ModNetBroker(resolver: dependencies.resolver), ledger: ledger
         ))
-        supervisor = ModHostSupervisor(factory: options.transport, config: options.hostConfig, deadlineGraceMs: options.deadlineGraceMs, callHandler: broker)
+        supervisor = ModHostSupervisor(factory: options.transport, config: options.hostConfig, deadlineGraceMs: options.deadlineGraceMs, loadGraceMs: options.loadGraceMs, callHandler: broker)
         broker.runtime = self
         supervisor.onEvent = { [weak self] e in self?.record(e) }
         supervisor.onHostFailure = { [weak self] offender, reason in self?.hostFailed(offender: offender, reason: reason) }

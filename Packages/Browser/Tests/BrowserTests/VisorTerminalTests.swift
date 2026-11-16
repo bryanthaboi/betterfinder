@@ -228,6 +228,35 @@ final class VisorTerminalTests: XCTestCase {
         XCTAssertFalse(front.isTerminalShown)
     }
 
+    func testColorPanelStaysAboveTheVisorAndRaisedWindows() throws {
+        let manager = BrowserWindowManager()
+        let visor = makeVisor(manager)
+        BrowserDefaults.store.set(true, forKey: VisorSettings.aboveDockKey)
+        visor.install()
+        defer {
+            visor.uninstall()
+            NSColorPanel.shared.orderOut(nil)
+            for c in manager.controllers { c.close() }
+        }
+        let behind = NSWindow(contentRect: NSRect(x: 100, y: 100, width: 300, height: 200), styleMask: [.titled], backing: .buffered, defer: false)
+        behind.isReleasedWhenClosed = false
+        behind.orderFront(nil)
+        defer { behind.close() }
+        visor.show()
+        let visorLevel = VisorLayout.level(aboveDock: true).rawValue
+        let settings = NSWindow(contentRect: NSRect(x: 200, y: 200, width: 400, height: 300), styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        settings.isReleasedWhenClosed = false
+        settings.makeKeyAndOrderFront(nil)
+        defer { settings.close() }
+        XCTAssertTrue(spin(until: { NSApp.updateWindows(); return settings.level.rawValue > visorLevel }))
+        let panel = NSColorPanel.shared
+        panel.orderFront(nil)
+        XCTAssertTrue(spin(until: { NSApp.updateWindows(); return panel.level.rawValue > settings.level.rawValue }), "panel \(panel.level.rawValue) settings \(settings.level.rawValue)")
+        XCTAssertEqual(behind.level, .normal)
+        visor.hide()
+        XCTAssertTrue(spin(until: { panel.level == .floating && settings.level == .normal }))
+    }
+
     func testNewWindowsOpenAsVisorTabsWhenEnabled() throws {
         let manager = BrowserWindowManager()
         let visor = makeVisor(manager)
